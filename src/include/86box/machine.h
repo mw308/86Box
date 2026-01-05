@@ -931,6 +931,7 @@ extern int             machine_at_pc330_65x6_init(const machine_t *);
 extern const device_t  zappa_device;
 #endif
 extern int             machine_at_zappa_init(const machine_t *);
+extern int             machine_at_hillary_init(const machine_t *);
 #ifdef EMU_DEVICE_H
 extern const device_t  powermatev_device;
 #endif
