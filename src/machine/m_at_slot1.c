@@ -1333,6 +1333,22 @@ machine_at_borapro_init(const machine_t *model)
     return ret;
 }
 
+int
+machine_at_miami_init(const machine_t *model)
+{
+    int ret;
+
+    ret = bios_load_linear("roms/machines/miami/52000130.rom",
+                           0x000c0000, 262144, 0);
+
+    if (bios_only || !ret)
+        return ret;
+
+    machine_at_ms6168_common_init(model);
+
+    return ret;
+}
+
 /* SMSC VictoryBX-66 */
 int
 machine_at_atc6310bxii_init(const machine_t *model)
