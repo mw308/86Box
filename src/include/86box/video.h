@@ -400,6 +400,7 @@ extern const device_t gd5430_onboard_pci_device;
 extern const device_t gd5434_isa_device;
 extern const device_t gd5434_diamond_speedstar_64_a3_isa_device;
 extern const device_t gd5434_onboard_pci_device;
+extern const device_t gd5434_onboard_pci_device_2mb;
 extern const device_t gd5434_vlb_device;
 extern const device_t gd5434_pci_device;
 extern const device_t gd5436_pci_device;
