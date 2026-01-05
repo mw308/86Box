@@ -234,6 +234,9 @@ extern const device_t pasplus_device;
 extern const device_t pas16_device;
 extern const device_t pas16d_device;
 
+/* ProSonic 16 */
+extern const device_t pros16_device;
+
 /* Rainbow Arts PC-Soundman */
 extern const device_t soundman_device;
 

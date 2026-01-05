@@ -153,6 +153,7 @@ static const SOUND_CARD sound_cards[] = {
     { &opti_82c931_device           },
     { &pas16_device                 },
     { &pas16d_device                },
+    { &pros16_device                },
     { &sb_16_device                 },
     { &sb_16_pnp_device             },
     { &sb_16_pnp_ide_device         },
