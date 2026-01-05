@@ -307,6 +307,111 @@ machine_at_spitfire_init(const machine_t *model)
     return ret;
 }
 
+static const device_config_t ms6117_config[] = {
+    // clang-format off
+    {
+        .name           = "bios",
+        .description    = "BIOS Version",
+        .type           = CONFIG_BIOS,
+        .default_string = "ms6117ami",
+        .default_int    = 0,
+        .file_filter    = NULL,
+        .spinner        = { 0 },
+        .selection      = { { 0 } },
+        .bios           = {
+            {
+                .name          = "American Megatrends Inc. (071595) - Revision 2.0 (RM PC-6300 Accelerator)",
+                .internal_name = "ms6117ami",
+                .bios_type     = BIOS_NORMAL, 
+                .files_no      = 1,
+                .local         = 0,
+                .size          = 131072,
+                .files         = { "roms/machines/ms6117/A617MS20.ROM", "" }
+            },
+            {
+                .name          = "Award Modular BIOS v4.51PG - Revision 3.2",
+                .internal_name = "ms6117awd1M",
+                .bios_type     = BIOS_NORMAL, 
+                .files_no      = 1,
+                .local         = 0,
+                .size          = 131072,
+                .files         = { "roms/machines/ms6117/W617MS25.BIN", "" }
+            },
+            {
+                .name          = "Award Modular BIOS v4.51PG Viglen OEM (W6117V1) - Revision 1.5",
+                .internal_name = "ms6117vgl",
+                .bios_type     = BIOS_NORMAL, 
+                .files_no      = 1,
+                .local         = 0,
+                .size          = 131072,
+                .files         = { "roms/machines/ms6117/w617v115.bin", "" }
+            },
+            {
+                .name          = "Award Modular BIOS v4.51PG FSC OEM (W6117F1) - Revision 1.4",
+                .internal_name = "ms6117fsc",
+                .bios_type     = BIOS_NORMAL, 
+                .files_no      = 1,
+                .local         = 0,
+                .size          = 131072,
+                .files         = { "roms/machines/ms6117/AWARD 1.04 .BIN", "" }
+            },
+            { .files_no = 0 }
+        },
+    },
+    { .name = "", .description = "", .type = CONFIG_END }
+    // clang-format on
+};
+
+const device_t ms6117_device = {
+    .name          = "MSI MS-6117",
+    .internal_name = "ms6117_device",
+    .flags         = 0,
+    .local         = 0,
+    .init          = NULL,
+    .close         = NULL,
+    .reset         = NULL,
+    .available     = NULL,
+    .speed_changed = NULL,
+    .force_redraw  = NULL,
+    .config        = ms6117_config
+};
+
+int
+machine_at_ms6117_init(const machine_t *model)
+{
+    int         ret = 0;
+    const char *fn;
+
+    /* No ROMs available */
+    if (!device_available(model->device))
+        return ret;
+
+    device_context(model->device);
+    fn  = device_get_bios_file(machine_get_device(machine), device_get_config_bios("bios"), 0);
+    ret = bios_load_linear(fn, 0x000e0000, 131072, 0);
+    device_context_restore();
+
+    machine_at_common_init(model);
+
+    pci_init(PCI_CONFIG_TYPE_1);
+    pci_register_slot(0x00, PCI_CARD_NORTHBRIDGE, 0, 0, 0, 0);
+    pci_register_slot(0x08, PCI_CARD_VIDEO,       1, 2, 0, 0);
+    pci_register_slot(0x12, PCI_CARD_NORMAL,      1, 2, 3, 4);
+    pci_register_slot(0x11, PCI_CARD_NORMAL,      2, 3, 4, 1);
+    pci_register_slot(0x10, PCI_CARD_NORMAL,      3, 4, 1, 2);
+    pci_register_slot(0x07, PCI_CARD_SOUTHBRIDGE, 0, 0, 0, 0);
+    pci_register_slot(0x01, PCI_CARD_AGPBRIDGE,   1, 2, 3, 4);
+
+    device_add(&i440lx_device);
+    device_add(&piix4e_device);
+    device_add_params(&fdc37c93x_device, (void *) (FDC37XXX5 | FDC37C93X_NORMAL | FDC37C93X_NO_NVR));
+    device_add(&intel_flash_bxt_device);
+    spd_register(SPD_TYPE_SDRAM, 0xF, 256);
+    device_add(&lm78_device); /* no reporting in BIOS */
+
+    return ret;
+}
+
 int
 machine_at_ma30d_init(const machine_t *model)
 {
