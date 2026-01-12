@@ -79,6 +79,7 @@ static char flash_path[1024];
 #define SST29LE_VE512 0x3d00
 #define SST29EE010    0x0700
 #define SST29LE_VE010 0x0800
+#define SST29EE011    0x0900
 #define SST29EE020    0x1000
 #define SST29LE_VE020 0x1200
 
@@ -572,6 +573,20 @@ const device_t sst_flash_29ee010_device = {
     .internal_name = "sst_flash_29ee010",
     .flags         = 0,
     .local         = SST | SST29EE010 | SIZE_1M,
+    .init          = sst_init,
+    .close         = sst_close,
+    .reset         = NULL,
+    .available     = NULL,
+    .speed_changed = NULL,
+    .force_redraw  = NULL,
+    .config        = NULL
+};
+
+const device_t sst_flash_29ee011_device = {
+    .name          = "SST 29EE011 Flash BIOS",
+    .internal_name = "sst_flash_29ee011",
+    .flags         = 0,
+    .local         = SST | SST29EE011 | SIZE_1M,
     .init          = sst_init,
     .close         = sst_close,
     .reset         = NULL,
