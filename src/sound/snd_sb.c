@@ -2921,6 +2921,85 @@ ess_chipchat_mca_write(int port, uint8_t val, void *priv)
     }
 }
 
+static void *
+mv_pros16_init(UNUSED(const device_t *info))
+{
+    sb_t          *ess      = calloc(sizeof(sb_t), 1);
+    const uint16_t addr     = 0x220;
+    const uint16_t mpu_addr = 0x330;
+
+    fm_driver_get(FM_YMF262, &ess->opl);
+
+    sb_dsp_set_real_opl(&ess->dsp, 1);
+    sb_dsp_init(&ess->dsp, SBPRO2_DSP_302, info->local ? SB_SUBTYPE_ESS_ES1688 : SB_SUBTYPE_ESS_ES688, ess);
+    sb_dsp_setaddr(&ess->dsp, addr);
+    sb_dsp_setirq(&ess->dsp, 5);
+    sb_dsp_setdma8(&ess->dsp, 1);
+    sb_dsp_setdma16(&ess->dsp, 5);
+    sb_dsp_setdma16_supported(&ess->dsp, 1);
+    sb_dsp_setdma16_enabled(&ess->dsp, 1);
+    ess_mixer_reset(ess);
+
+    /* DSP I/O handler is activated in sb_dsp_setaddr */
+    io_sethandler(addr, 0x0004,
+                  ess->opl.read, NULL, NULL,
+                  ess->opl.write, NULL, NULL,
+                  ess->opl.priv);
+    io_sethandler(addr + 8, 0x0002,
+                  ess->opl.read, NULL, NULL,
+                  ess->opl.write, NULL, NULL,
+                  ess->opl.priv);
+    io_sethandler(addr + 8, 0x0002,
+                  ess_fm_midi_read, NULL, NULL,
+                  ess_fm_midi_write, NULL, NULL,
+                  ess);
+    io_sethandler(0x0388, 0x0004,
+                  ess->opl.read, NULL, NULL,
+                  ess->opl.write, NULL, NULL,
+                  ess->opl.priv);
+    io_sethandler(0x0388, 0x0004,
+                  ess_fm_midi_read, NULL, NULL,
+                  ess_fm_midi_write, NULL, NULL,
+                  ess);
+
+    io_sethandler(addr + 2, 0x0004,
+                  ess_base_read, NULL, NULL,
+                  ess_base_write, NULL, NULL,
+                  ess);
+    io_sethandler(addr + 6, 0x0001,
+                  ess_base_read, NULL, NULL,
+                  ess_base_write, NULL, NULL,
+                  ess);
+    io_sethandler(addr + 0x0a, 0x0006,
+                  ess_base_read, NULL, NULL,
+                  ess_base_write, NULL, NULL,
+                  ess);
+
+    ess->mixer_enabled = 1;
+    ess->mixer_ess.regs[0x40] = 0x0a;
+    io_sethandler(addr + 4, 0x0002,
+                  ess_mixer_read, NULL, NULL,
+                  ess_mixer_write, NULL, NULL,
+                  ess);
+    sound_add_handler(sb_get_buffer_ess, ess);
+    music_add_handler(sb_get_music_buffer_ess, ess);
+    sound_set_cd_audio_filter(ess_filter_cd_audio, ess);
+
+    if (device_get_config_int("receive_input401")) {
+        ess->mpu = (mpu_t *) calloc(1, sizeof(mpu_t));
+        mpu401_init(ess->mpu, 0x330, 0, M_UART, 1);
+    } else
+        ess->mpu = NULL;
+    sb_dsp_set_mpu(&ess->dsp, ess->mpu);
+
+    if (device_get_config_int("gameport")) {
+        ess->gameport      = gameport_add(&gameport_200_device);
+        ess->gameport_addr = 0x200;
+    }
+
+    return ess;
+}
+
 void *
 sb_init(UNUSED(const device_t *info))
 {
@@ -5574,6 +5653,32 @@ static const device_config_t ess_1688_pnp_config[] = {
     },
     { .name = "", .description = "", .type = CONFIG_END }
 };
+
+static const device_config_t mv_pros16_config[] = {
+    {
+        .name           = "gameport",
+        .description    = "Enable Game port",
+        .type           = CONFIG_BINARY,
+        .default_string = NULL,
+        .default_int    = 1,
+        .file_filter    = NULL,
+        .spinner        = { 0 },
+        .selection      = { { 0 } },
+        .bios           = { { 0 } }
+    },
+    {
+        .name           = "receive_input401",
+        .description    = "Receive MIDI input (MPU-401)",
+        .type           = CONFIG_BINARY,
+        .default_string = NULL,
+        .default_int    = 1,
+        .file_filter    = NULL,
+        .spinner        = { 0 },
+        .selection      = { { 0 } },
+        .bios           = { { 0 } }
+    },
+    { .name = "", .description = "", .type = CONFIG_END }
+};
 // clang-format on
 
 const device_t sb_1_device = {
@@ -6106,4 +6211,18 @@ const device_t ess_chipchat_16_mca_device = {
     .speed_changed = sb_speed_changed,
     .force_redraw  = NULL,
     .config        = ess_1688_pnp_config
+};
+
+const device_t pros16_device = {
+    .name          = "MediaVision ProSonic 16",
+    .internal_name = "mv_pros16",
+    .flags         = DEVICE_ISA16,
+    .local         = FM_YMF262,
+    .init          = mv_pros16_init,
+    .close         = sb_close,
+    .reset         = NULL,
+    .available     = NULL,
+    .speed_changed = sb_speed_changed,
+    .force_redraw  = NULL,
+    .config        = mv_pros16_config
 };
