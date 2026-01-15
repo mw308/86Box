@@ -1251,6 +1251,7 @@ extern const device_t  vei8_device;
 extern int             machine_at_vei8_init(const machine_t *);
 extern int             machine_at_ms6168_init(const machine_t *);
 extern int             machine_at_borapro_init(const machine_t *);
+extern int             machine_at_miami_init(const machine_t *);
 
 /* SMSC VictoryBX-66 */
 extern int             machine_at_atc6310bxii_init(const machine_t *);
