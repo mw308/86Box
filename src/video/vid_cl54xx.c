@@ -4927,6 +4927,25 @@ static const device_config_t gd5434_onboard_config[] = {
     { .name = "", .description = "", .type = CONFIG_END }
 };
 
+static const device_config_t gd5434_onboard_config_2mb[] = {
+    {
+        .name           = "memory",
+        .description    = "Memory size",
+        .type           = CONFIG_SELECTION,
+        .default_string = NULL,
+        .default_int    = 1,
+        .file_filter    = NULL,
+        .spinner        = { 0 },
+        .selection      = {
+            { .description = "1 MB", .value = 1 },
+            { .description = "2 MB", .value = 2 },
+            { .description = ""                 }
+        },
+        .bios           = { { 0 } }
+    },
+    { .name = "", .description = "", .type = CONFIG_END }
+};
+
 static const device_config_t gd5480_config[] = {
     {
         .name           = "memory",
@@ -5397,6 +5416,20 @@ const device_t gd5434_onboard_pci_device = {
     .speed_changed = gd54xx_speed_changed,
     .force_redraw  = gd54xx_force_redraw,
     .config        = gd5434_onboard_config
+};
+
+const device_t gd5434_onboard_pci_device_2mb = {
+    .name          = "Cirrus Logic GD5434-1 (PCI) (On-Board)",
+    .internal_name = "cl_gd5434_onboard_pci_2mb",
+    .flags         = DEVICE_PCI,
+    .local         = CIRRUS_ID_CLGD5434 | 0x200,
+    .init          = gd54xx_init,
+    .close         = gd54xx_close,
+    .reset         = gd54xx_reset,
+    .available     = NULL,
+    .speed_changed = gd54xx_speed_changed,
+    .force_redraw  = gd54xx_force_redraw,
+    .config        = gd5434_onboard_config_2mb
 };
 
 const device_t gd5434_vlb_device = {
