@@ -4080,24 +4080,17 @@ static void *
 mv_pros16_init(UNUSED(const device_t *info))
 {
     sb_t          *ess      = calloc(sizeof(sb_t), 1);
-    const uint16_t addr     = device_get_config_hex16("base");
-    const uint16_t mpu_addr = device_get_config_hex16("base401");
-    const uint16_t ide_ctrl = (const uint16_t) device_get_config_int("ide_ctrl");
-    const uint16_t ide_base = ide_ctrl & 0x0fff;
-    const uint16_t ide_side = ide_base + 0x0206;
-    const uint16_t ide_irq  = ide_ctrl >> 12;
+    const uint16_t addr     = 0x220;
+    const uint16_t mpu_addr = 0x330;
 
-    ess->opl_enabled = device_get_config_int("opl");
-    if (ess->opl_enabled)
-        /*fm_driver_get((int) (intptr_t) info->local, &sb->opl);*/
-		fm_driver_get(info->local ? FM_ESFM : FM_YMF262, &ess->opl);
+    fm_driver_get(FM_YMF262, &ess->opl);
 
     sb_dsp_set_real_opl(&ess->dsp, 1);
     sb_dsp_init(&ess->dsp, SBPRO2_DSP_302, info->local ? SB_SUBTYPE_ESS_ES1688 : SB_SUBTYPE_ESS_ES688, ess);
     sb_dsp_setaddr(&ess->dsp, addr);
-    sb_dsp_setirq(&ess->dsp, device_get_config_int("irq"));
-    sb_dsp_setdma8(&ess->dsp, device_get_config_int("dma"));
-    sb_dsp_setdma16(&ess->dsp, device_get_config_int("dma16"));
+    sb_dsp_setirq(&ess->dsp, 5);
+    sb_dsp_setdma8(&ess->dsp, 1);
+    sb_dsp_setdma16(&ess->dsp, 5);
     sb_dsp_setdma16_supported(&ess->dsp, 1);
     sb_dsp_setdma16_enabled(&ess->dsp, 1);
     ess_mixer_reset(ess);
@@ -4146,24 +4139,10 @@ mv_pros16_init(UNUSED(const device_t *info))
     sound_add_handler(sb_get_buffer_ess, ess);
     music_add_handler(sb_get_music_buffer_ess, ess);
     sound_set_cd_audio_filter(ess_filter_cd_audio, ess);
-    if (info->local && device_get_config_int("control_pc_speaker"))
-        sound_set_pc_speaker_filter(ess_filter_pc_speaker, ess);
 
-    if (device_get_config_int("receive_input"))
-        midi_in_handler(1, sb_dsp_input_msg, sb_dsp_input_sysex, &ess->dsp);
-
-    /*if (info->local) {
+    if (device_get_config_int("receive_input401")) {
         ess->mpu = (mpu_t *) calloc(1, sizeof(mpu_t));
-        /* NOTE: The MPU is initialized disabled and with no IRQ assigned.
-         * It will be later initialized by the guest OS's drivers. * /
-        mpu401_init(ess->mpu, 0, -1, M_UART, device_get_config_int("receive_input401"));
-        sb_dsp_set_mpu(&ess->dsp, ess->mpu);
-    }*/
-
-    if (mpu_addr) {
-        ess->mpu = (mpu_t *) calloc(1, sizeof(mpu_t));
-        mpu401_init(ess->mpu, device_get_config_hex16("base401"), 0, M_UART,
-                    device_get_config_int("receive_input401"));
+        mpu401_init(ess->mpu, 0x330, 0, M_UART, 1);
     } else
         ess->mpu = NULL;
     sb_dsp_set_mpu(&ess->dsp, ess->mpu);
@@ -4171,16 +4150,6 @@ mv_pros16_init(UNUSED(const device_t *info))
     if (device_get_config_int("gameport")) {
         ess->gameport      = gameport_add(&gameport_200_device);
         ess->gameport_addr = 0x200;
-    }
-
-    if (ide_base > 0x0000) {
-        device_add(&ide_qua_pnp_device);
-        ide_set_base(4, ide_base);
-        ide_set_side(4, ide_side);
-        ide_set_irq(4, ide_irq);
-        other_ide_present++;
-
-        ess->has_ide = 1;
     }
 
     return ess;
@@ -5586,123 +5555,8 @@ static const device_config_t ess_1688_pnp_config[] = {
 
 static const device_config_t mv_pros16_config[] = {
     {
-        .name           = "base",
-        .description    = "Address",
-        .type           = CONFIG_HEX16,
-        .default_string = NULL,
-        .default_int    = 0x220,
-        .file_filter    = NULL,
-        .spinner        = { 0 },
-        .selection      = {
-            { .description = "0x220", .value = 0x220 },
-            { .description = "0x240", .value = 0x240 },
-            { .description = "0x260", .value = 0x260 },
-            { .description = "0x280", .value = 0x280 },
-            { .description = ""                      }
-        },
-        .bios           = { { 0 } }
-    },
-    {
-        .name           = "base401",
-        .description    = "MPU-401 Address",
-        .type           = CONFIG_HEX16,
-        .default_string = NULL,
-        .default_int    = 0x330,
-        .file_filter    = NULL,
-        .spinner        = { 0 },
-        .selection      = {
-            { .description = "Disabled", .value =     0 },
-            { .description = "0x300",    .value = 0x300 },
-            { .description = "0x330",    .value = 0x330 },
-            { .description = ""                         }
-        },
-        .bios           = { { 0 } }
-    },
-    {
-        .name           = "irq",
-        .description    = "IRQ",
-        .type           = CONFIG_SELECTION,
-        .default_string = NULL,
-        .default_int    = 7,
-        .file_filter    = NULL,
-        .spinner        = { 0 },
-        .selection      = {
-            { .description =  "IRQ 2", .value =  2 },
-            { .description =  "IRQ 5", .value =  5 },
-            { .description =  "IRQ 7", .value =  7 },
-            { .description = "IRQ 10", .value = 10 },
-            { .description = ""                    }
-        },
-        .bios           = { { 0 } }
-    },
-    {
-        .name           = "dma",
-        .description    = "Low DMA",
-        .type           = CONFIG_SELECTION,
-        .default_string = NULL,
-        .default_int    = 1,
-        .file_filter    = NULL,
-        .spinner        = { 0 },
-        .selection      = {
-            { .description = "DMA 0", .value = 0 },
-            { .description = "DMA 1", .value = 1 },
-            { .description = "DMA 3", .value = 3 },
-            { .description = ""                  }
-        },
-        .bios           = { { 0 } }
-    },
-    {
-        .name           = "dma16",
-        .description    = "High DMA",
-        .type           = CONFIG_SELECTION,
-        .default_string = NULL,
-        .default_int    = 5,
-        .file_filter    = NULL,
-        .spinner        = { 0 },
-        .selection      = {
-            { .description = "DMA 5", .value = 5 },
-            { .description = "DMA 6", .value = 6 },
-            { .description = "DMA 7", .value = 7 },
-            { .description = ""                  }
-        },
-        .bios           = { { 0 } }
-    },
-    {
         .name           = "gameport",
         .description    = "Enable Game port",
-        .type           = CONFIG_BINARY,
-        .default_string = NULL,
-        .default_int    = 1,
-        .file_filter    = NULL,
-        .spinner        = { 0 },
-        .selection      = { { 0 } },
-        .bios           = { { 0 } }
-    },
-    {
-        .name           = "opl",
-        .description    = "Enable OPL",
-        .type           = CONFIG_BINARY,
-        .default_string = NULL,
-        .default_int    = 1,
-        .file_filter    = NULL,
-        .spinner        = { 0 },
-        .selection      = { { 0 } },
-        .bios           = { { 0 } }
-    },
-    {
-        .name           = "control_pc_speaker",
-        .description    = "Control PC speaker",
-        .type           = CONFIG_BINARY,
-        .default_string = NULL,
-        .default_int    = 0,
-        .file_filter    = NULL,
-        .spinner        = { 0 },
-        .selection      = { { 0 } },
-        .bios           = { { 0 } }
-    },
-    {
-        .name           = "receive_input",
-        .description    = "Receive MIDI input",
         .type           = CONFIG_BINARY,
         .default_string = NULL,
         .default_int    = 1,
