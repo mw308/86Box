@@ -461,6 +461,15 @@ static const device_config_t delhi3_config[] = {
                 .size          = 262144,
                 .files         = { "roms/machines/delhi3/DELHI3.ROM", "" }
             },
+            {
+                .name          = "AMIBIOS 6 (071595) - Packard Bell FR50 (Miami)",
+                .internal_name = "delhi3_pb",
+                .bios_type     = BIOS_NORMAL,
+                .files_no      = 1,
+                .local         = 0,
+                .size          = 262144,
+                .files         = { "roms/machines/delhi3/MIAMI.ROM", "" }
+            },
             { .files_no = 0 }
         }
     },

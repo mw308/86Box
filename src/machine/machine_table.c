@@ -20867,7 +20867,7 @@ const machine_t machines[] = {
         .vid_device               = NULL,
         .snd_device               = &cs4235_onboard_device,
         .net_device               = NULL,
-        .aliases                  = { "eMachines eTower 3__k", "" }
+        .aliases                  = { "Packard Bell Miami", "eMachines eTower 3__k", "" }
     },
 
     /* Socket 8 machines */
