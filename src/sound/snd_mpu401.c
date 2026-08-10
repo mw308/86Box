@@ -278,6 +278,7 @@ MPU401_Reset(mpu_t *mpu)
     mpu->state.midi_mask                            = 0xffff;
     mpu->state.command_byte                         = 0;
     mpu->state.block_ack                            = 0;
+    mpu->state.sysex_in_finished                    = 1; // Initialize in finished state
     mpu->clock.tempo = mpu->clock.old_tempo         = 100;
     mpu->clock.timebase = mpu->clock.old_timebase   = 120;
     mpu->clock.tempo_rel = mpu->clock.old_tempo_rel = 0x40;
@@ -316,7 +317,10 @@ MPU401_Reset(mpu_t *mpu)
             mpu->ch_toref[i]                        = 4; /* Dummy reftable. */
     }
 
-    MPU401_ClrQueue(mpu);
+    /* SB 16 only? */
+    if (!mpu->intelligent)
+        MPU401_ClrQueue(mpu);
+
     mpu->state.data_onoff                           = -1;
 
     mpu->state.req_mask                             = 0;
@@ -1717,7 +1721,7 @@ mpu401_device_add(void)
 }
 
 static uint8_t
-mpu401_mca_read(int port, void *priv)
+mpu401_mca_read(const uint16_t port, void *priv)
 {
     const mpu_t *mpu = (mpu_t *) priv;
 
@@ -1725,7 +1729,7 @@ mpu401_mca_read(int port, void *priv)
 }
 
 static void
-mpu401_mca_write(int port, uint8_t val, void *priv)
+mpu401_mca_write(uint16_t port, uint8_t val, void *priv)
 {
     mpu_t   *mpu = (mpu_t *) priv;
     uint16_t addr;

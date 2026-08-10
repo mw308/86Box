@@ -320,16 +320,16 @@ intel_flash_add_mappings(flash_t *dev)
             mem_mapping_add(&(dev->mapping[i]), base, 0x10000,
                             flash_read, flash_readw, flash_readl,
                             flash_write, flash_writew, flash_writel,
-                            dev->array + fbase, MEM_MAPPING_EXTERNAL | MEM_MAPPING_ROM | MEM_MAPPING_ROMCS, (void *) dev);
+                            dev->array + fbase, MEM_MAPPING_EXTERNAL | MEM_MAPPING_ROM | MEM_MAPPING_ROMCS | MEM_MAPPING_ROM_WS, (void *) dev);
         }
         mem_mapping_add(&(dev->mapping_h[i]), (base | 0xfff00000) - sub, 0x10000,
                         flash_read, flash_readw, flash_readl,
                         flash_write, flash_writew, flash_writel,
-                        dev->array + fbase, MEM_MAPPING_EXTERNAL | MEM_MAPPING_ROM | MEM_MAPPING_ROMCS, (void *) dev);
+                        dev->array + fbase, MEM_MAPPING_EXTERNAL | MEM_MAPPING_ROM | MEM_MAPPING_ROMCS | MEM_MAPPING_ROM_WS, (void *) dev);
         mem_mapping_add(&(dev->mapping_h[i + max]), (base | 0xfff00000), 0x10000,
                         flash_read, flash_readw, flash_readl,
                         flash_write, flash_writew, flash_writel,
-                        dev->array + fbase, MEM_MAPPING_EXTERNAL | MEM_MAPPING_ROM | MEM_MAPPING_ROMCS, (void *) dev);
+                        dev->array + fbase, MEM_MAPPING_EXTERNAL | MEM_MAPPING_ROM | MEM_MAPPING_ROMCS | MEM_MAPPING_ROM_WS, (void *) dev);
     }
 }
 
@@ -358,7 +358,7 @@ intel_flash_init(const device_t *info)
     mem_mapping_disable(&bios_mapping);
     mem_mapping_disable(&bios_high_mapping);
 
-    dev->array = (uint8_t *) malloc(biosmask + 1);
+    dev->array = (uint8_t *) calloc(1, biosmask + 1);
     memset(dev->array, 0xff, biosmask + 1);
 
     switch (biosmask) {
@@ -510,7 +510,7 @@ intel_flash_init(const device_t *info)
     dev->status  = 0;
 
     fp = nvr_fopen(flash_path, "rb");
-    if (fp) {
+    if (!dump_missing && (fp != NULL)) {
         (void) !fread(&(dev->array[dev->block_start[BLOCK_MAIN1]]), dev->block_len[BLOCK_MAIN1], 1, fp);
         if (dev->block_len[BLOCK_MAIN2])
             (void) !fread(&(dev->array[dev->block_start[BLOCK_MAIN2]]), dev->block_len[BLOCK_MAIN2], 1, fp);
@@ -534,16 +534,18 @@ intel_flash_close(void *priv)
     flash_t *dev = (flash_t *) priv;
 
     fp = nvr_fopen(flash_path, "wb");
-    fwrite(&(dev->array[dev->block_start[BLOCK_MAIN1]]), dev->block_len[BLOCK_MAIN1], 1, fp);
-    if (dev->block_len[BLOCK_MAIN2])
-        fwrite(&(dev->array[dev->block_start[BLOCK_MAIN2]]), dev->block_len[BLOCK_MAIN2], 1, fp);
-    if (dev->block_len[BLOCK_MAIN3])
-        fwrite(&(dev->array[dev->block_start[BLOCK_MAIN3]]), dev->block_len[BLOCK_MAIN3], 1, fp);
-    if (dev->block_len[BLOCK_MAIN4])
-        fwrite(&(dev->array[dev->block_start[BLOCK_MAIN4]]), dev->block_len[BLOCK_MAIN4], 1, fp);
+    if (!dump_missing) {
+        fwrite(&(dev->array[dev->block_start[BLOCK_MAIN1]]), dev->block_len[BLOCK_MAIN1], 1, fp);
+        if (dev->block_len[BLOCK_MAIN2])
+            fwrite(&(dev->array[dev->block_start[BLOCK_MAIN2]]), dev->block_len[BLOCK_MAIN2], 1, fp);
+        if (dev->block_len[BLOCK_MAIN3])
+            fwrite(&(dev->array[dev->block_start[BLOCK_MAIN3]]), dev->block_len[BLOCK_MAIN3], 1, fp);
+        if (dev->block_len[BLOCK_MAIN4])
+            fwrite(&(dev->array[dev->block_start[BLOCK_MAIN4]]), dev->block_len[BLOCK_MAIN4], 1, fp);
 
-    fwrite(&(dev->array[dev->block_start[BLOCK_DATA1]]), dev->block_len[BLOCK_DATA1], 1, fp);
-    fwrite(&(dev->array[dev->block_start[BLOCK_DATA2]]), dev->block_len[BLOCK_DATA2], 1, fp);
+        fwrite(&(dev->array[dev->block_start[BLOCK_DATA1]]), dev->block_len[BLOCK_DATA1], 1, fp);
+        fwrite(&(dev->array[dev->block_start[BLOCK_DATA2]]), dev->block_len[BLOCK_DATA2], 1, fp);
+    }
     fclose(fp);
 
     free(dev->array);

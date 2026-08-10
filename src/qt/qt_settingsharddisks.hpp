@@ -15,7 +15,10 @@ public:
     ~SettingsHarddisks();
     void reloadBusChannels();
 
-    void save();
+    int  changed();
+
+    void restore();
+    void save(int soft);
 
 signals:
     void driveChannelChanged();
@@ -36,7 +39,13 @@ private:
     Ui::SettingsHarddisks *ui;
     void                   enableCurrentlySelectedChannel();
     void                   populateAudioProfiles();
+    void                   addRow(QAbstractItemModel *model, void *priv);
+    void                   addDriveFromDialog(Ui::SettingsHarddisks *ui, const HarddiskDialog &dlg);
     bool                   buschangeinprogress = false;
+
+    int                    org_rows = 0;
+
+    SettingsCompleter     *scSpeed;
 };
 
 #endif // QT_SETTINGSHARDDISKS_HPP

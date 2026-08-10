@@ -2024,14 +2024,15 @@ m19_vid_init(m19_vid_t *vid)
     vid->ogc.cga.revision     = device_get_config_int("composite_type");
     vid->ogc.cga.snow_enabled = device_get_config_int("snow_enabled");
 
-    vid->ogc.cga.vram = malloc(0x8000);
+    vid->ogc.cga.vram = calloc(1, 0x8000);
 
 #if 0
     cga_comp_init(vid->ogc.cga.revision);
 #endif
 
     vid->ogc.cga.rgb_type = device_get_config_int("rgb_type");
-    cga_palette           = (vid->ogc.cga.rgb_type << 1);
+    if (&(cga_palette) != NULL)
+        cga_palette           = (vid->ogc.cga.rgb_type << 1);
     cgapal_rebuild();
     ogc_mdaattr_rebuild();
 
@@ -2051,7 +2052,7 @@ m19_vid_init(m19_vid_t *vid)
     vid->colorplus.cga.snow_enabled = device_get_config_int("snow_enabled");
 #endif
 
-    vid->colorplus.cga.vram = malloc(0x8000);
+    vid->colorplus.cga.vram = calloc(1, 0x8000);
 
 #if 0
     vid->colorplus.cga.cgamode = 0x1;
@@ -2459,7 +2460,8 @@ machine_xt_m19_init(const machine_t *model)
 
     device_add(&kbc_xt_olivetti_device);
 
-    pit_set_clock((uint32_t) 14318184.0);
+    if (cpu_s != NULL)
+        pit_set_clock((uint32_t) 14318184.0);
 
     return ret;
 }

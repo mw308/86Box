@@ -89,6 +89,7 @@ enum {
 typedef struct hdd_preset_t {
     const char *name;
     const char *internal_name;
+    const char *vendor;
     const char *model;
     const char *version;
     uint32_t    zones;
@@ -156,7 +157,8 @@ typedef struct hard_disk_t {
                                         Bit 1 = DMA supportd. */
     uint8_t            wp;           /* Disk has been mounted
                                         READ-ONLY */
-    uint8_t            pad;
+    uint8_t            raw_device;   /* Path is a raw block device
+                                        (e.g. /dev/sdX, /dev/diskN) */
     uint8_t            pad0;
 
     void              *priv;
@@ -185,6 +187,8 @@ typedef struct hard_disk_t {
 
     uint8_t            max_multiple_block;
     uint8_t            pad1[3];
+
+    const char        *vendor;
 
     const char        *model;
 
@@ -222,6 +226,8 @@ extern uint32_t hdd_image_get_pos(uint8_t id);
 extern uint8_t  hdd_image_get_type(uint8_t id);
 extern void     hdd_image_unload(uint8_t id, int fn_preserve);
 extern void     hdd_image_close(uint8_t id);
+extern void     hdd_image_sync(uint8_t id);
+extern void     hdd_image_sync_all(void);
 extern void     hdd_image_calc_chs(uint32_t *c, uint32_t *h, uint32_t *s, uint32_t size);
 
 extern int image_is_hdi(const char *s);

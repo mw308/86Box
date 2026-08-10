@@ -81,7 +81,7 @@ static const device_config_t p54tp4xe_config[] = {
 
 const device_t p54tp4xe_device = {
     .name          = "ASUS P/I-P55TP4XE",
-    .internal_name = "p54tp4xe_device",
+    .internal_name = "p54tp4xe",
     .flags         = 0,
     .local         = 0,
     .init          = NULL,
@@ -204,7 +204,7 @@ machine_at_holly_init(const machine_t *model) /* HP Pavilion Holly, 7070/7090/51
     if (bios_only || !ret)
         return ret;
 
-    machine_at_common_init_ex(model, 2);
+    machine_at_common_init(model);
     machine_at_holly_gpio_init();
 
     pci_init(PCI_CONFIG_TYPE_1);
@@ -224,6 +224,38 @@ machine_at_holly_init(const machine_t *model) /* HP Pavilion Holly, 7070/7090/51
     device_add(&piix_device);
     device_add_params(&pc87306_device, (void *) PCX730X_AMI);
     device_add(&intel_flash_bxt_ami_device);
+
+    return ret;
+}
+
+int
+machine_at_vectra500mt_init(const machine_t *model)
+{
+    int ret;
+
+    ret = bios_load_linear("roms/machines/vectra500mt/GJ0718.FUL",
+                           0x000e0000, 131072, 0);
+
+    if (bios_only || !ret)
+        return ret;
+
+    machine_at_common_init(model);
+
+    pci_init(PCI_CONFIG_TYPE_1);
+    pci_register_slot(0x00, PCI_CARD_NORTHBRIDGE, 0, 0, 0, 0);
+    pci_register_slot(0x0F, PCI_CARD_SOUTHBRIDGE, 0, 0, 0, 0);
+    pci_register_slot(0x0D, PCI_CARD_VIDEO,       0, 0, 0, 0);
+    pci_register_slot(0x06, PCI_CARD_NORMAL,      1, 2, 3, 4);
+    pci_register_slot(0x07, PCI_CARD_NORMAL,      2, 3, 4, 1);
+    pci_register_slot(0x08, PCI_CARD_NORMAL,      3, 4, 1, 2);
+
+    if (gfxcard[0] == VID_INTERNAL)
+        device_add(machine_get_vid_device(machine));
+
+    device_add(&i430fx_device);
+    device_add(&piix_device);
+    device_add_params(&fdc37c93x_device, (void *) (FDC37XXX2 | FDC37C93X_NORMAL));
+    device_add(&sst_flash_29ee010_device);
 
     return ret;
 }
@@ -308,7 +340,7 @@ const device_t vectra52_device = {
 int
 machine_at_vectra52_init(const machine_t *model)
 {
-	int         ret = 0;
+    int         ret = 0;
     const char *fn;
 
     /* No ROMs available */
@@ -320,8 +352,8 @@ machine_at_vectra52_init(const machine_t *model)
     ret = bios_load_linear(fn, 0x000e0000, 131072, 0);
     device_context_restore();
 
-    machine_at_common_init_ex(model, 2);
-	machine_at_vectra52_gpio_init();
+    machine_at_common_init(model);
+    machine_at_vectra52_gpio_init();
 
     pci_init(PCI_CONFIG_TYPE_1);
     pci_register_slot(0x00, PCI_CARD_NORTHBRIDGE, 0, 0, 0, 0);
@@ -335,39 +367,8 @@ machine_at_vectra52_init(const machine_t *model)
     device_add_params(&pc87306_device, (void *) PCX730X_PHOENIX_42);
     device_add(&intel_flash_bxt_device);
 	
-	 if (gfxcard[0] == VID_INTERNAL)
-        device_add(machine_get_vid_device(machine));
-
-    return ret;
-}
-int
-machine_at_vectra500mt_init(const machine_t *model)
-{
-    int ret;
-
-    ret = bios_load_linear("roms/machines/vectra500mt/GJ0718.FUL",
-                           0x000e0000, 131072, 0);
-
-    if (bios_only || !ret)
-        return ret;
-
-    machine_at_common_init_ex(model, 2);
-
-    pci_init(PCI_CONFIG_TYPE_1);
-    pci_register_slot(0x00, PCI_CARD_NORTHBRIDGE, 0, 0, 0, 0);
-    pci_register_slot(0x0F, PCI_CARD_SOUTHBRIDGE, 0, 0, 0, 0);
-    pci_register_slot(0x0D, PCI_CARD_VIDEO,       0, 0, 0, 0);
-    pci_register_slot(0x06, PCI_CARD_NORMAL,      1, 2, 3, 4);
-    pci_register_slot(0x07, PCI_CARD_NORMAL,      2, 3, 4, 1);
-    pci_register_slot(0x08, PCI_CARD_NORMAL,      3, 4, 1, 2);
-
     if (gfxcard[0] == VID_INTERNAL)
         device_add(machine_get_vid_device(machine));
-
-    device_add(&i430fx_device);
-    device_add(&piix_device);
-    device_add_params(&fdc37c93x_device, (void *) (FDC37XXX2 | FDC37C93X_NORMAL));
-    device_add(&sst_flash_29ee010_device);
 
     return ret;
 }
@@ -383,7 +384,7 @@ machine_at_vectra54_init(const machine_t *model)
     if (bios_only || !ret)
         return ret;
 
-    machine_at_common_init_ex(model, 2);
+    machine_at_common_init(model);
 
     pci_init(PCI_CONFIG_TYPE_1);
     pci_register_slot(0x00, PCI_CARD_NORTHBRIDGE, 0, 0, 0, 0);
@@ -394,12 +395,86 @@ machine_at_vectra54_init(const machine_t *model)
     pci_register_slot(0x08, PCI_CARD_NORMAL,      3, 4, 1, 2);
 
     if (gfxcard[0] == VID_INTERNAL)
-        device_add(&s3_phoenix_trio64_onboard_pci_device);
+        device_add(machine_get_vid_device(machine));
 
     device_add(&i430fx_device);
     device_add(&piix_device);
     device_add_params(&fdc37c93x_device, (void *) (FDC37XXX2 | FDC37C93X_NORMAL));
     device_add(&sst_flash_29ee010_device);
+
+    return ret;
+}
+
+static void
+machine_at_atlantis_gpio_init(void)
+{
+    uint32_t gpio = 0xffffe0cf;
+
+    /* Register 0x0079: */
+    /* Bit 7: 0 = Clear password, 1 = Keep password. */
+    /* Bit 6: 0 = NVRAM cleared by jumper, 1 = NVRAM normal. */
+    /* Bit 5: 0 = CMOS Setup disabled, 1 = CMOS Setup enabled. */
+    /* Bit 4: External CPU clock (Switch 8). */
+    /* Bit 3: External CPU clock (Switch 7). */
+    /*        50 MHz: Switch 7 = Off, Switch 8 = Off. */
+    /*        60 MHz: Switch 7 = On, Switch 8 = Off. */
+    /*        66 MHz: Switch 7 = Off, Switch 8 = On. */
+    /* Bit 2: 0 = On-board audio absent, 1 = On-board audio present. */
+    /* Bit 1: 0 = Soft-off capable power supply present, 1 = Soft-off capable power supply absent. */
+    /* Bit 0: 0 = 2x multiplier, 1 = 1.5x multiplier (Switch 6). */
+    /* NOTE: A bit is read as 1 if switch is off, and as 0 if switch is on. */
+    if (cpu_busspeed <= 50000000)
+        gpio |= 0xffff0000;
+    else if ((cpu_busspeed > 50000000) && (cpu_busspeed <= 60000000))
+        gpio |= 0xffff0800;
+    else if (cpu_busspeed > 60000000)
+        gpio |= 0xffff1000;
+
+    if (sound_card_current[0] == SOUND_INTERNAL)
+        gpio |= 0xffff0400;
+
+    if (cpu_dmulti <= 1.5)
+        gpio |= 0xffff0100;
+    else
+        gpio |= 0xffff0000;
+
+    machine_set_gpio_default(gpio);
+}
+
+int
+machine_at_atlantis_init(const machine_t *model)
+{
+    int ret;
+
+    ret = bios_load_linear_combined("roms/machines/atlantis/1007CL0_.BIO",
+                                    "roms/machines/atlantis/1007CL0_.BI1",
+                                    0x20000, 128);
+
+    if (bios_only || !ret)
+        return ret;
+
+    machine_at_common_init(model);
+    machine_at_atlantis_gpio_init();
+
+    pci_init(PCI_CONFIG_TYPE_1);
+    pci_register_slot(0x00, PCI_CARD_NORTHBRIDGE, 0, 0, 0, 0);
+    pci_register_slot(0x07, PCI_CARD_SOUTHBRIDGE, 0, 0, 0, 0);
+    pci_register_slot(0x08, PCI_CARD_VIDEO,       4, 0, 0, 0);
+    pci_register_slot(0x0D, PCI_CARD_NORMAL,      1, 2, 3, 4);
+    pci_register_slot(0x0E, PCI_CARD_NORMAL,      2, 3, 4, 1);
+    pci_register_slot(0x0F, PCI_CARD_NORMAL,      3, 4, 1, 2);
+    pci_register_slot(0x10, PCI_CARD_NORMAL,      4, 1, 2, 3);
+
+    if (gfxcard[0] == VID_INTERNAL)
+        device_add(machine_get_vid_device(machine));
+
+    if (sound_card_current[0] == SOUND_INTERNAL)
+        machine_snd = device_add(machine_get_snd_device(machine));
+
+    device_add(&i430fx_device);
+    device_add(&piix_device);
+    device_add_params(&pc87306_device, (void *) PCX730X_AMI);
+    device_add(&intel_flash_bxt_ami_device);
 
     return ret;
 }
@@ -451,8 +526,8 @@ static const device_config_t thor_config[] = {
 };
 
 const device_t thor_device = {
-    .name          = "Intel Advanced/ATX (Thor)",
-    .internal_name = "thor_device",
+    .name          = "Intel Advanced/ATX",
+    .internal_name = "thor",
     .flags         = 0,
     .local         = 0,
     .init          = NULL,
@@ -535,7 +610,7 @@ machine_at_thor_init(const machine_t *model)
     }
     device_context_restore();
 
-    machine_at_common_init_ex(model, 2);
+    machine_at_common_init(model);
     machine_at_thor_gpio_init();
 
     pci_init(PCI_CONFIG_TYPE_1);
@@ -564,58 +639,60 @@ machine_at_thor_init(const machine_t *model)
 static void
 machine_at_endeavor_gpio_init(void)
 {
-    uint32_t gpio = 0xffffe0cf;
-    uint16_t addr;
+    if (!dump_missing) {
+        uint32_t gpio = 0xffffe0cf;
+        uint16_t addr;
 
-    /* Register 0x0078 (Undocumented): */
-    /* Bit 5,4: Vibra 16S base address: 0 = 220h, 1 = 260h, 2 = 240h, 3 = 280h. */
-    device_context(machine_get_snd_device(machine));
-    addr = device_get_config_hex16("base");
-    switch (addr) {
-        case 0x0220:
-            gpio |= 0xffff00cf;
-            break;
-        case 0x0240:
-            gpio |= 0xffff00ef;
-            break;
-        case 0x0260:
-            gpio |= 0xffff00df;
-            break;
-        case 0x0280:
-            gpio |= 0xffff00ff;
-            break;
+        /* Register 0x0078 (Undocumented): */
+        /* Bit 5,4: Vibra 16S base address: 0 = 220h, 1 = 260h, 2 = 240h, 3 = 280h. */
+        device_context(machine_get_snd_device(machine));
+        addr = device_get_config_hex16("base");
+        switch (addr) {
+            case 0x0220:
+                gpio |= 0xffff00cf;
+                break;
+            case 0x0240:
+                gpio |= 0xffff00ef;
+                break;
+            case 0x0260:
+                gpio |= 0xffff00df;
+                break;
+            case 0x0280:
+                gpio |= 0xffff00ff;
+                break;
+        }
+        device_context_restore();
+
+        /* Register 0x0079: */
+        /* Bit 7: 0 = Clear password, 1 = Keep password. */
+        /* Bit 6: 0 = NVRAM cleared by jumper, 1 = NVRAM normal. */
+        /* Bit 5: 0 = CMOS Setup disabled, 1 = CMOS Setup enabled. */
+        /* Bit 4: External CPU clock (Switch 8). */
+        /* Bit 3: External CPU clock (Switch 7). */
+        /*        50 MHz: Switch 7 = Off, Switch 8 = Off. */
+        /*        60 MHz: Switch 7 = On, Switch 8 = Off. */
+        /*        66 MHz: Switch 7 = Off, Switch 8 = On. */
+        /* Bit 2: 0 = On-board audio absent, 1 = On-board audio present. */
+        /* Bit 1: 0 = Soft-off capable power supply present, 1 = Soft-off capable power supply absent. */
+        /* Bit 0: 0 = 2x multiplier, 1 = 1.5x multiplier (Switch 6). */
+        /* NOTE: A bit is read as 1 if switch is off, and as 0 if switch is on. */
+        if (cpu_busspeed <= 50000000)
+            gpio |= 0xffff0000;
+        else if ((cpu_busspeed > 50000000) && (cpu_busspeed <= 60000000))
+            gpio |= 0xffff0800;
+        else if (cpu_busspeed > 60000000)
+            gpio |= 0xffff1000;
+
+        if (sound_card_current[0] == SOUND_INTERNAL)
+            gpio |= 0xffff0400;
+
+        if (cpu_dmulti <= 1.5)
+            gpio |= 0xffff0100;
+        else
+            gpio |= 0xffff0000;
+
+        machine_set_gpio_default(gpio);
     }
-    device_context_restore();
-
-    /* Register 0x0079: */
-    /* Bit 7: 0 = Clear password, 1 = Keep password. */
-    /* Bit 6: 0 = NVRAM cleared by jumper, 1 = NVRAM normal. */
-    /* Bit 5: 0 = CMOS Setup disabled, 1 = CMOS Setup enabled. */
-    /* Bit 4: External CPU clock (Switch 8). */
-    /* Bit 3: External CPU clock (Switch 7). */
-    /*        50 MHz: Switch 7 = Off, Switch 8 = Off. */
-    /*        60 MHz: Switch 7 = On, Switch 8 = Off. */
-    /*        66 MHz: Switch 7 = Off, Switch 8 = On. */
-    /* Bit 2: 0 = On-board audio absent, 1 = On-board audio present. */
-    /* Bit 1: 0 = Soft-off capable power supply present, 1 = Soft-off capable power supply absent. */
-    /* Bit 0: 0 = 2x multiplier, 1 = 1.5x multiplier (Switch 6). */
-    /* NOTE: A bit is read as 1 if switch is off, and as 0 if switch is on. */
-    if (cpu_busspeed <= 50000000)
-        gpio |= 0xffff0000;
-    else if ((cpu_busspeed > 50000000) && (cpu_busspeed <= 60000000))
-        gpio |= 0xffff0800;
-    else if (cpu_busspeed > 60000000)
-        gpio |= 0xffff1000;
-
-    if (sound_card_current[0] == SOUND_INTERNAL)
-        gpio |= 0xffff0400;
-
-    if (cpu_dmulti <= 1.5)
-        gpio |= 0xffff0100;
-    else
-        gpio |= 0xffff0000;
-
-    machine_set_gpio_default(gpio);
 }
 
 uint32_t
@@ -648,58 +725,6 @@ machine_at_endeavor_gpio_handler(uint8_t write, uint32_t val)
     return ret;
 }
 
-static void
-machine_at_monaco_gpio_init(void)
-{
-    uint32_t gpio = 0xffffe0cf;
-
-    /* Register 0x0079: */
-    /* Bit 7: 0 = Clear password, 1 = Keep password. */
-    /* Bit 6: 0 = NVRAM cleared by jumper, 1 = NVRAM normal. */
-    /* Bit 5: 0 = CMOS Setup disabled, 1 = CMOS Setup enabled. */
-    /* Bit 4: External CPU clock (Switch 8). */
-    /* Bit 3: External CPU clock (Switch 7). */
-    /*        50 MHz: Switch 7 = Off, Switch 8 = Off. */
-    /*        60 MHz: Switch 7 = On, Switch 8 = Off. */
-    /*        66 MHz: Switch 7 = Off, Switch 8 = On. */
-    /* Bit 2: 0 = On-board audio absent, 1 = On-board audio present. */
-    /* Bit 1: 0 = Soft-off capable power supply present, 1 = Soft-off capable power supply absent. */
-    /* Bit 0: 0 = 2x multiplier, 1 = 1.5x multiplier (Switch 6). */
-    /* NOTE: A bit is read as 1 if switch is off, and as 0 if switch is on. */
-    if (cpu_busspeed <= 50000000)
-        gpio |= 0xffff0000;
-    else if ((cpu_busspeed > 50000000) && (cpu_busspeed <= 60000000))
-        gpio |= 0xffff0800;
-    else if (cpu_busspeed > 60000000)
-        gpio |= 0xffff1000;
-
-    if (sound_card_current[0] == SOUND_INTERNAL)
-        gpio |= 0xffff0400;
-
-    if (cpu_dmulti <= 1.5)
-        gpio |= 0xffff0100;
-    else
-        gpio |= 0xffff0000;
-
-    machine_set_gpio_default(gpio);
-}
-
-uint32_t
-machine_at_monaco_gpio_handler(uint8_t write, uint32_t val)
-{
-    uint32_t ret = machine_get_gpio_default();
-
-    if (write) {
-        ret &= ((val & 0xffffffcf) | 0xffff0000);
-        ret |= (val & 0x00000030);
-
-        machine_set_gpio(ret);
-    } else
-        ret = machine_get_gpio();
-
-    return ret;
-}
-
 int
 machine_at_endeavor_init(const machine_t *model)
 {
@@ -712,7 +737,7 @@ machine_at_endeavor_init(const machine_t *model)
     if (bios_only || !ret)
         return ret;
 
-    machine_at_common_init_ex(model, 2);
+    machine_at_common_init(model);
     machine_at_endeavor_gpio_init();
 
     pci_init(PCI_CONFIG_TYPE_1);
@@ -739,45 +764,7 @@ machine_at_endeavor_init(const machine_t *model)
 }
 
 /* The Monaco and Atlantis share the same GPIO config */
-#define machine_at_atlantis_gpio_init machine_at_monaco_gpio_init
-
-int
-machine_at_atlantis_init(const machine_t *model)
-{
-    int ret;
-
-    ret = bios_load_linear_combined("roms/machines/atlantis/1007CL0_.BIO",
-                                    "roms/machines/atlantis/1007CL0_.BI1",
-                                    0x20000, 128);
-
-    if (bios_only || !ret)
-        return ret;
-
-    machine_at_common_init_ex(model, 2);
-    machine_at_atlantis_gpio_init();
-
-    pci_init(PCI_CONFIG_TYPE_1);
-    pci_register_slot(0x00, PCI_CARD_NORTHBRIDGE, 0, 0, 0, 0);
-    pci_register_slot(0x07, PCI_CARD_SOUTHBRIDGE, 0, 0, 0, 0);
-    pci_register_slot(0x08, PCI_CARD_VIDEO,       4, 0, 0, 0);
-    pci_register_slot(0x0D, PCI_CARD_NORMAL,      1, 2, 3, 4);
-    pci_register_slot(0x0E, PCI_CARD_NORMAL,      2, 3, 4, 1);
-    pci_register_slot(0x0F, PCI_CARD_NORMAL,      3, 4, 1, 2);
-    pci_register_slot(0x10, PCI_CARD_NORMAL,      4, 1, 2, 3);
-
-    if (gfxcard[0] == VID_INTERNAL)
-        device_add(machine_get_vid_device(machine));
-
-    if (sound_card_current[0] == SOUND_INTERNAL)
-        machine_snd = device_add(machine_get_snd_device(machine));
-
-    device_add(&i430fx_device);
-    device_add(&piix_device);
-    device_add_params(&pc87306_device, (void *) PCX730X_AMI);
-    device_add(&intel_flash_bxt_ami_device);
-
-    return ret;
-}
+#define machine_at_monaco_gpio_init machine_at_atlantis_gpio_init
 
 static const device_config_t monaco_config[] = {
     // clang-format off
@@ -817,8 +804,8 @@ static const device_config_t monaco_config[] = {
 };
 
 const device_t monaco_device = {
-    .name          = "Intel Advanced/MA (Monaco)",
-    .internal_name = "monaco_device",
+    .name          = "Intel Advanced/MA",
+    .internal_name = "monaco",
     .flags         = 0,
     .local         = 0,
     .init          = NULL,
@@ -829,6 +816,22 @@ const device_t monaco_device = {
     .force_redraw  = NULL,
     .config        = monaco_config
 };
+
+uint32_t
+machine_at_monaco_gpio_handler(uint8_t write, uint32_t val)
+{
+    uint32_t ret = machine_get_gpio_default();
+
+    if (write) {
+        ret &= ((val & 0xffffffcf) | 0xffff0000);
+        ret |= (val & 0x00000030);
+
+        machine_set_gpio(ret);
+    } else
+        ret = machine_get_gpio();
+
+    return ret;
+}
 
 int
 machine_at_monaco_init(const machine_t *model)
@@ -847,7 +850,7 @@ machine_at_monaco_init(const machine_t *model)
     ret = bios_load_linear_combined(fn, fn2, 0x20000, 128);
     device_context_restore();
 
-    machine_at_common_init_ex(model, 2);
+    machine_at_common_init(model);
     machine_at_monaco_gpio_init();
 
     pci_init(PCI_CONFIG_TYPE_1);
@@ -910,7 +913,7 @@ static const device_config_t ms5119_config[] = {
 
 const device_t ms5119_device = {
     .name          = "MSI MS-5119",
-    .internal_name = "ms5119_device",
+    .internal_name = "ms5119",
     .flags         = 0,
     .local         = 0,
     .init          = NULL,
@@ -999,7 +1002,7 @@ machine_at_pb640_init(const machine_t *model)
     if (bios_only || !ret)
         return ret;
 
-    machine_at_common_init_ex(model, 2);
+    machine_at_common_init(model);
     machine_at_pb640_gpio_init();
 
     pci_init(PCI_CONFIG_TYPE_1);
@@ -1091,7 +1094,7 @@ static const device_config_t fmb_config[] = {
 
 const device_t fmb_device = {
     .name          = "QDI FMB",
-    .internal_name = "fmb_device",
+    .internal_name = "fmb",
     .flags         = 0,
     .local         = 0,
     .init          = NULL,
@@ -1138,6 +1141,35 @@ machine_at_fmb_init(const machine_t *model)
 }
 
 int
+machine_at_sjptm_init(const machine_t *model)
+{
+    int ret;
+
+    ret = bios_load_linear("roms/machines/sjptm/p28f001bx-t-at-dip32-sj-pentium-fx-intel-p28f001bx-t-6a283cfb3cbff518008684.BIN",
+                           0x000e0000, 131072, 0);
+
+    if (bios_only || !ret)
+        return ret;
+
+    machine_at_common_init(model);
+
+    pci_init(PCI_CONFIG_TYPE_1);
+    pci_register_slot(0x00, PCI_CARD_NORTHBRIDGE, 0, 0, 0, 0);
+    pci_register_slot(0x07, PCI_CARD_SOUTHBRIDGE, 0, 0, 0, 0);
+    pci_register_slot(0x08, PCI_CARD_NORMAL,      2, 3, 4, 1);
+    pci_register_slot(0x09, PCI_CARD_NORMAL,      3, 4, 1, 2);
+    pci_register_slot(0x0A, PCI_CARD_NORMAL,      4, 1, 2, 3);
+
+    device_add(&i430fx_device);
+    device_add(&piix_device);
+    device_add_params(machine_get_kbc_device(machine), (void *) model->kbc_params);
+    device_add_params(&um866x_device, (void *) UM8663AF);
+    device_add(&intel_flash_bxt_device);
+
+    return ret;
+}
+
+int
 machine_at_acerv35n_init(const machine_t *model)
 {
     int ret;
@@ -1148,7 +1180,7 @@ machine_at_acerv35n_init(const machine_t *model)
     if (bios_only || !ret)
         return ret;
 
-    machine_at_common_init_ex(model, 2);
+    machine_at_common_init(model);
 
     pci_init(PCI_CONFIG_TYPE_1);
     pci_register_slot(0x00, PCI_CARD_NORTHBRIDGE, 0, 0, 0, 0);
@@ -1286,7 +1318,7 @@ static const device_config_t d943_config[] = {
 
 const device_t d943_device = {
     .name          = "Siemens-Nixdorf D943",
-    .internal_name = "d943_device",
+    .internal_name = "d943",
     .flags         = 0,
     .local         = 0,
     .init          = NULL,
@@ -1313,8 +1345,7 @@ machine_at_d943_init(const machine_t *model)
     ret = bios_load_linear(fn, 0x000e0000, 131072, 0);
     device_context_restore();
 
-    machine_at_common_init_ex(model, 2);
-    device_add(&amstrad_megapc_nvr_device);
+    machine_at_common_init(model);
 
     pci_init(PCI_CONFIG_TYPE_1);
     pci_register_slot(0x00, PCI_CARD_NORTHBRIDGE, 0, 0, 0, 0);
@@ -1340,6 +1371,40 @@ machine_at_d943_init(const machine_t *model)
     return ret;
 }
 
+#include <86box/pci_dummy.h>
+
+int
+machine_at_op47_init(const machine_t *model)
+{
+    int ret;
+
+    ret = bios_load_linear("roms/machines/op47/Op47bios.bin",
+                           0x000e0000, 131072, 0);
+
+    if (bios_only || !ret)
+        return ret;
+
+    machine_at_common_init(model);
+
+    pci_init(PCI_CONFIG_TYPE_1);
+    pci_register_slot(0x00, PCI_CARD_NORTHBRIDGE, 0, 0, 0, 0);
+    pci_register_slot(0x11, PCI_CARD_NORMAL,      1, 2, 3, 4);
+    pci_register_slot(0x14, PCI_CARD_NORMAL,      2, 3, 4, 1);
+    pci_register_slot(0x13, PCI_CARD_NORMAL,      3, 4, 1, 2);
+    pci_register_slot(0x12, PCI_CARD_NORMAL,      4, 1, 2, 3);
+    pci_register_slot(0x07, PCI_CARD_SOUTHBRIDGE, 0, 0, 0, 0);
+
+    device_add(&i430hx_device);
+    device_add(&piix3_device);
+    device_add_inst_params(&fdc37c93x_device, 1, (void *) (FDC37XXX2 | FDC37C93X_NORMAL | FDC37XXXX_370));
+    device_add_inst_params(&i82091aa_device, 2, (void *) I82091AA_26E);
+    device_add(&intel_flash_bxt_device);
+
+    /* TODO: Implement the VADEM VG-469 PCMCIA controller. */
+
+    return ret;
+}
+
 /* i430VX */
 int
 machine_at_gw2kma_init(const machine_t *model)
@@ -1356,7 +1421,7 @@ machine_at_gw2kma_init(const machine_t *model)
     if (bios_only || !ret)
         return ret;
 
-    machine_at_common_init_ex(model, 2);
+    machine_at_common_init(model);
 
     pci_init(PCI_CONFIG_TYPE_1);
     pci_register_slot(0x00, PCI_CARD_NORTHBRIDGE, 0, 0, 0, 0);
@@ -1373,6 +1438,35 @@ machine_at_gw2kma_init(const machine_t *model)
     device_add(&piix3_device);
     device_add_params(&fdc37c93x_device, (void *) (FDC37XXX2 | FDC37C93X_FR));
     device_add(&intel_flash_bxt_ami_device);
+
+    return ret;
+}
+
+/* OPTi Viper */
+int
+machine_at_rhino8_init(const machine_t *model)
+{
+    int ret;
+
+    ret = bios_load_linear("roms/machines/rhino8/R8V9704.BIN",
+                           0x000e0000, 131072, 0);
+
+    if (bios_only || !ret)
+        return ret;
+
+    machine_at_common_init(model);
+
+    pci_init(PCI_CONFIG_TYPE_1);
+    pci_register_slot(0x00, PCI_CARD_NORTHBRIDGE, 0, 0, 0, 0);
+    pci_register_slot(0x01, PCI_CARD_SOUTHBRIDGE, 0, 0, 0, 0);
+    pci_register_slot(0x10, PCI_CARD_NORMAL,      2, 3, 4, 1);
+    pci_register_slot(0x11, PCI_CARD_NORMAL,      3, 4, 1, 2);
+    pci_register_slot(0x12, PCI_CARD_NORMAL,      4, 1, 2, 3);
+    pci_register_slot(0x14, PCI_CARD_IDE,         4, 0, 0, 0);
+    device_add(&opti55x_device);
+    device_add_params(machine_get_kbc_device(machine), (void *) model->kbc_params);
+    device_add_params(&fdc37c6xx_device, (void *) FDC37C665);
+    device_add(&intel_flash_bxt_device);
 
     return ret;
 }
@@ -1425,8 +1519,8 @@ static const device_config_t c5sbm2_config[] = {
 };
 
 const device_t c5sbm2_device = {
-    .name          = "Chaintech 5SBM/5SBM2 (M103)",
-    .internal_name = "5sbm2_device",
+    .name          = "Chaintech 5SBM2",
+    .internal_name = "5sbm2",
     .flags         = 0,
     .local         = 0,
     .init          = NULL,
@@ -1456,7 +1550,7 @@ machine_at_5sbm2_init(const machine_t *model)
     if (bios_only || !ret)
         return ret;
 
-    machine_at_common_init_ex(model, 2);
+    machine_at_common_init(model);
 
     pci_init(PCI_CONFIG_TYPE_1 | FLAG_TRC_CONTROLS_CPURST);
     pci_register_slot(0x00, PCI_CARD_NORTHBRIDGE, 0, 0, 0, 0);
@@ -1485,7 +1579,7 @@ machine_at_amis727_init(const machine_t *model)
     if (bios_only || !ret)
         return ret;
 
-    machine_at_common_init_ex(model, 2);
+    machine_at_common_init(model);
 
     pci_init(PCI_CONFIG_TYPE_1 | FLAG_TRC_CONTROLS_CPURST);
     pci_register_slot(0x00, PCI_CARD_NORTHBRIDGE, 0, 0, 0, 0);
@@ -1551,7 +1645,7 @@ static const device_config_t ap5s_config[] = {
 
 const device_t ap5s_device = {
     .name          = "AOpen AP5S",
-    .internal_name = "ap5s_device",
+    .internal_name = "ap5s",
     .flags         = 0,
     .local         = 0,
     .init          = NULL,
@@ -1578,7 +1672,7 @@ machine_at_ap5s_init(const machine_t *model)
     ret = bios_load_linear(fn, 0x000e0000, 131072, 0);
     device_context_restore();
 
-    machine_at_common_init_ex(model, 2);
+    machine_at_common_init(model);
 
     pci_init(PCI_CONFIG_TYPE_1 | FLAG_TRC_CONTROLS_CPURST);
     pci_register_slot(0x00, PCI_CARD_NORTHBRIDGE, 0, 0, 0, 0);
@@ -1607,7 +1701,7 @@ machine_at_fm562_init(const machine_t *model)
     if (bios_only || !ret)
         return ret;
 
-    machine_at_common_init_ex(model, 2);
+    machine_at_common_init(model);
 
     pci_init(PCI_CONFIG_TYPE_1 | FLAG_TRC_CONTROLS_CPURST);
     pci_register_slot(0x00, PCI_CARD_NORTHBRIDGE, 1, 2, 3, 4);
@@ -1638,7 +1732,7 @@ machine_at_pc140_6260_init(const machine_t *model)
     if (bios_only || !ret)
         return ret;
 
-    machine_at_common_init_ex(model, 2);
+    machine_at_common_init(model);
 
     pci_init(PCI_CONFIG_TYPE_1 | FLAG_TRC_CONTROLS_CPURST);
     pci_register_slot(0x00, PCI_CARD_NORTHBRIDGE, 1, 2, 3, 4);
@@ -1697,7 +1791,7 @@ static const device_config_t ms5124_config[] = {
 
 const device_t ms5124_device = {
     .name          = "MSI MS-5124",
-    .internal_name = "ms5124_device",
+    .internal_name = "ms5124",
     .flags         = 0,
     .local         = 0,
     .init          = NULL,
@@ -1724,7 +1818,7 @@ machine_at_ms5124_init(const machine_t *model)
     ret = bios_load_linear(fn, 0x000e0000, 131072, 0);
     device_context_restore();
 
-    machine_at_common_init_ex(model, 2);
+    machine_at_common_init(model);
 
     pci_init(PCI_CONFIG_TYPE_1 | FLAG_TRC_CONTROLS_CPURST);
     pci_register_slot(0x00, PCI_CARD_NORTHBRIDGE, 0, 0, 0, 0);
@@ -1754,7 +1848,7 @@ machine_at_zeoswildcat_init(const machine_t *model)
     if (bios_only || !ret)
         return ret;
 
-    machine_at_common_init_ex(model, 2);
+    machine_at_common_init(model);
 
     pci_init(PCI_CONFIG_TYPE_1);
     pci_register_slot(0x00, PCI_CARD_NORTHBRIDGE, 0, 0, 0, 0);

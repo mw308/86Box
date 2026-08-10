@@ -443,7 +443,8 @@ pc87306_reset_common(void *priv)
     serial_handler(dev, 1);
     fdc_reset(dev->fdc);
     pc87306_gpio_init(dev);
-    nvr_lock_set(0x00, 256, 0, dev->nvr);
+    if (!dump_missing)
+        nvr_lock_set(0x00, 256, 0, dev->nvr);
     nvr_at_handler(0, 0x0070, dev->nvr);
     nvr_at_handler(1, 0x0070, dev->nvr);
     nvr_bank_set(0, 0, dev->nvr);
@@ -486,7 +487,7 @@ pc87306_init(UNUSED(const device_t *info))
     dev->lpt = device_add_inst(&lpt_port_device, 1);
     lpt_set_cnfga_readout(dev->lpt, 0x10);
 
-    dev->nvr = device_add(&at_mb_nvr_device);
+    dev->nvr = device_add_params(&nvr_at_device, (void *) (uintptr_t) NVR_AT_MB);
 
     switch (dev->kbc_type) {
         case PCX730X_AMI:

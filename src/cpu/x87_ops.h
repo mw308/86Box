@@ -78,7 +78,7 @@ typedef union {
         do {                                            \
             if (((double) src2) == 0.0) {               \
                 cpu_state.npxs |= FPU_SW_Zero_Div;      \
-                if (cpu_state.npxc & FPU_SW_Zero_Div)   \
+                if ((cpu_state.npxc & FPU_SW_Zero_Div) || (cpu_state.npxc & 0x80)) \
                     dst = src1 / (double) src2;         \
                 else {                                  \
                     fpu_log("FPU : divide by zero\n");  \
@@ -100,7 +100,7 @@ typedef union {
                     dst = src1 / (double) src2;         \
                 else {                                  \
                     fpu_log("FPU : divide by zero\n");  \
-                    if (cr0 & 0x20)                     \
+                    if (is486 && (cr0 & 0x20))          \
                         new_ne = 1;                     \
                     else                                \
                         picint(1 << 13);                \
@@ -158,7 +158,12 @@ x87_pop(void)
 #ifdef USE_NEW_DYNAREC
     cpu_state.TOP++;
 #else
-    cpu_state.tag[cpu_state.TOP & 7] |= TAG_UINT64;
+    /* Old-dynarec "empty" is packed tag 3 (see FINIT's 0x0303... and the dynarec's
+       FP_POP, which writes 3). The previous `|= TAG_UINT64` left the vacated slot
+       tagged as a live 64-bit integer (x87_gettag maps TAG_UINT64 -> non-empty 2),
+       diverging from the dynarec and causing FXSAVE to serialize a stale MM.q with
+       the 0x5555 sentinel. Mark it empty like FP_POP/FINIT do. */
+    cpu_state.tag[cpu_state.TOP & 7] = 3;
     cpu_state.TOP = (cpu_state.TOP + 1) & 7;
 #endif
     return t;
@@ -334,13 +339,17 @@ x87_ld_frstor(int reg)
     cpu_state.MM[reg].q  = readmemq(easeg, cpu_state.eaaddr);
     cpu_state.MM_w4[reg] = readmemw(easeg, cpu_state.eaaddr + 8);
 
+    /* The 0x5555 pseudo-exponent is written by x87_st_fsave ONLY for a
+       TAG_UINT64 (FILD'd int64) register, and no legitimate float or MMX save
+       produces it (x87_st80 caps finite doubles near 0x43FF, NaN/Inf use 0x7fff,
+       x87_stmmx writes 0xffff). So the sentinel alone is a reliable marker.
+       Gating on it directly makes FXRSTOR round-trip the exact integer the same
+       way FNSAVE/FRSTOR does; the previous `tag == 2` condition depended on a
+       correctly-reconstructed abridged tag, which FXRSTOR cannot guarantee. */
+    if (cpu_state.MM_w4[reg] == 0x5555) {
 #ifdef USE_NEW_DYNAREC
-    if ((cpu_state.MM_w4[reg] == 0x5555) && (cpu_state.tag[reg] & TAG_UINT64))
+        cpu_state.tag[reg] = TAG_VALID | TAG_UINT64;
 #else
-    if ((cpu_state.MM_w4[reg] == 0x5555) && (cpu_state.tag[reg] == 2))
-#endif
-    {
-#ifndef USE_NEW_DYNAREC
         cpu_state.tag[reg] = TAG_UINT64;
 #endif
         cpu_state.ST[reg] = (double) cpu_state.MM[reg].q;
@@ -551,7 +560,11 @@ static int
 FPU_ILLEGAL_a16(UNUSED(uint32_t fetchdat))
 {
     geteaw();
+#ifdef FPU_NEC
+    do_cycles(timing_rr);
+#else
     wait_cycs(timing_rr, 0);
+#endif
     return 0;
 }
 #else
@@ -577,7 +590,7 @@ FPU_ILLEGAL_a32(uint32_t fetchdat)
 #define ILLEGAL_a16 FPU_ILLEGAL_a16
 
 #ifdef FPU_8087
-const OpFn OP_TABLE(sf_fpu_8087_d8)[32] = {
+static const OpFn OP_TABLE(sf_fpu_8087_d8)[32] = {
     // clang-format off
         sf_FADDs_a16, sf_FMULs_a16, sf_FCOMs_a16, sf_FCOMPs_a16, sf_FSUBs_a16, sf_FSUBRs_a16, sf_FDIVs_a16, sf_FDIVRs_a16,
         sf_FADDs_a16, sf_FMULs_a16, sf_FCOMs_a16, sf_FCOMPs_a16, sf_FSUBs_a16, sf_FSUBRs_a16, sf_FDIVs_a16, sf_FDIVRs_a16,
@@ -586,7 +599,7 @@ const OpFn OP_TABLE(sf_fpu_8087_d8)[32] = {
     // clang-format on
 };
 
-const OpFn OP_TABLE(sf_fpu_8087_d9)[256] = {
+static const OpFn OP_TABLE(sf_fpu_8087_d9)[256] = {
     // clang-format off
         sf_FLDs_a16,   sf_FLDs_a16,   sf_FLDs_a16,   sf_FLDs_a16,   sf_FLDs_a16,   sf_FLDs_a16,   sf_FLDs_a16,   sf_FLDs_a16,
         ILLEGAL_a16,  ILLEGAL_a16,  ILLEGAL_a16,  ILLEGAL_a16,  ILLEGAL_a16,  ILLEGAL_a16,  ILLEGAL_a16,  ILLEGAL_a16,
@@ -626,7 +639,7 @@ const OpFn OP_TABLE(sf_fpu_8087_d9)[256] = {
     // clang-format on
 };
 
-const OpFn OP_TABLE(sf_fpu_8087_da)[256] = {
+static const OpFn OP_TABLE(sf_fpu_8087_da)[256] = {
     // clang-format off
         sf_FADDil_a16,  sf_FADDil_a16,  sf_FADDil_a16,  sf_FADDil_a16,  sf_FADDil_a16,  sf_FADDil_a16,  sf_FADDil_a16,  sf_FADDil_a16,
         sf_FMULil_a16,  sf_FMULil_a16,  sf_FMULil_a16,  sf_FMULil_a16,  sf_FMULil_a16,  sf_FMULil_a16,  sf_FMULil_a16,  sf_FMULil_a16,
@@ -666,7 +679,7 @@ const OpFn OP_TABLE(sf_fpu_8087_da)[256] = {
     // clang-format on
 };
 
-const OpFn OP_TABLE(sf_fpu_8087_db)[256] = {
+static const OpFn OP_TABLE(sf_fpu_8087_db)[256] = {
     // clang-format off
         sf_FILDil_a16,  sf_FILDil_a16,  sf_FILDil_a16,  sf_FILDil_a16,  sf_FILDil_a16,  sf_FILDil_a16,  sf_FILDil_a16,  sf_FILDil_a16,
         ILLEGAL_a16,  ILLEGAL_a16,  ILLEGAL_a16,  ILLEGAL_a16,  ILLEGAL_a16,  ILLEGAL_a16,  ILLEGAL_a16,  ILLEGAL_a16,
@@ -706,7 +719,7 @@ const OpFn OP_TABLE(sf_fpu_8087_db)[256] = {
     // clang-format on
 };
 
-const OpFn OP_TABLE(sf_fpu_8087_dc)[32] = {
+static const OpFn OP_TABLE(sf_fpu_8087_dc)[32] = {
     // clang-format off
         sf_FADDd_a16, sf_FMULd_a16, sf_FCOMd_a16, sf_FCOMPd_a16, sf_FSUBd_a16, sf_FSUBRd_a16, sf_FDIVd_a16, sf_FDIVRd_a16,
         sf_FADDd_a16, sf_FMULd_a16, sf_FCOMd_a16, sf_FCOMPd_a16, sf_FSUBd_a16, sf_FSUBRd_a16, sf_FDIVd_a16, sf_FDIVRd_a16,
@@ -715,7 +728,7 @@ const OpFn OP_TABLE(sf_fpu_8087_dc)[32] = {
     // clang-format on
 };
 
-const OpFn OP_TABLE(sf_fpu_8087_dd)[256] = {
+static const OpFn OP_TABLE(sf_fpu_8087_dd)[256] = {
     // clang-format off
         sf_FLDd_a16,    sf_FLDd_a16,    sf_FLDd_a16,    sf_FLDd_a16,    sf_FLDd_a16,    sf_FLDd_a16,    sf_FLDd_a16,    sf_FLDd_a16,
         ILLEGAL_a16,  ILLEGAL_a16,  ILLEGAL_a16,  ILLEGAL_a16,  ILLEGAL_a16,  ILLEGAL_a16,  ILLEGAL_a16,  ILLEGAL_a16,
@@ -755,7 +768,7 @@ const OpFn OP_TABLE(sf_fpu_8087_dd)[256] = {
     // clang-format on
 };
 
-const OpFn OP_TABLE(sf_fpu_8087_de)[256] = {
+static const OpFn OP_TABLE(sf_fpu_8087_de)[256] = {
     // clang-format off
         sf_FADDiw_a16,  sf_FADDiw_a16,  sf_FADDiw_a16,  sf_FADDiw_a16,  sf_FADDiw_a16,  sf_FADDiw_a16,  sf_FADDiw_a16,  sf_FADDiw_a16,
         sf_FMULiw_a16,  sf_FMULiw_a16,  sf_FMULiw_a16,  sf_FMULiw_a16,  sf_FMULiw_a16,  sf_FMULiw_a16,  sf_FMULiw_a16,  sf_FMULiw_a16,
@@ -795,7 +808,7 @@ const OpFn OP_TABLE(sf_fpu_8087_de)[256] = {
     // clang-format on
 };
 
-const OpFn OP_TABLE(sf_fpu_8087_df)[256] = {
+static const OpFn OP_TABLE(sf_fpu_8087_df)[256] = {
     // clang-format off
         sf_FILDiw_a16,  sf_FILDiw_a16,  sf_FILDiw_a16,  sf_FILDiw_a16,  sf_FILDiw_a16,  sf_FILDiw_a16,  sf_FILDiw_a16,  sf_FILDiw_a16,
         ILLEGAL_a16,  ILLEGAL_a16,  ILLEGAL_a16,  ILLEGAL_a16,  ILLEGAL_a16,  ILLEGAL_a16,  ILLEGAL_a16,  ILLEGAL_a16,
@@ -835,7 +848,7 @@ const OpFn OP_TABLE(sf_fpu_8087_df)[256] = {
     // clang-format on
 };
 
-const OpFn OP_TABLE(fpu_8087_d8)[32] = {
+static const OpFn OP_TABLE(fpu_8087_d8)[32] = {
     // clang-format off
         opFADDs_a16, opFMULs_a16, opFCOMs_a16, opFCOMPs_a16, opFSUBs_a16, opFSUBRs_a16, opFDIVs_a16, opFDIVRs_a16,
         opFADDs_a16, opFMULs_a16, opFCOMs_a16, opFCOMPs_a16, opFSUBs_a16, opFSUBRs_a16, opFDIVs_a16, opFDIVRs_a16,
@@ -844,7 +857,7 @@ const OpFn OP_TABLE(fpu_8087_d8)[32] = {
     // clang-format on
 };
 
-const OpFn OP_TABLE(fpu_8087_d9)[256] = {
+static const OpFn OP_TABLE(fpu_8087_d9)[256] = {
     // clang-format off
         opFLDs_a16,   opFLDs_a16,   opFLDs_a16,   opFLDs_a16,   opFLDs_a16,   opFLDs_a16,   opFLDs_a16,   opFLDs_a16,
         ILLEGAL_a16,  ILLEGAL_a16,  ILLEGAL_a16,  ILLEGAL_a16,  ILLEGAL_a16,  ILLEGAL_a16,  ILLEGAL_a16,  ILLEGAL_a16,
@@ -884,7 +897,7 @@ const OpFn OP_TABLE(fpu_8087_d9)[256] = {
     // clang-format on
 };
 
-const OpFn OP_TABLE(fpu_8087_da)[256] = {
+static const OpFn OP_TABLE(fpu_8087_da)[256] = {
     // clang-format off
         opFADDil_a16,  opFADDil_a16,  opFADDil_a16,  opFADDil_a16,  opFADDil_a16,  opFADDil_a16,  opFADDil_a16,  opFADDil_a16,
         opFMULil_a16,  opFMULil_a16,  opFMULil_a16,  opFMULil_a16,  opFMULil_a16,  opFMULil_a16,  opFMULil_a16,  opFMULil_a16,
@@ -924,7 +937,7 @@ const OpFn OP_TABLE(fpu_8087_da)[256] = {
     // clang-format on
 };
 
-const OpFn OP_TABLE(fpu_8087_db)[256] = {
+static const OpFn OP_TABLE(fpu_8087_db)[256] = {
     // clang-format off
         opFILDil_a16,  opFILDil_a16,  opFILDil_a16,  opFILDil_a16,  opFILDil_a16,  opFILDil_a16,  opFILDil_a16,  opFILDil_a16,
         ILLEGAL_a16,  ILLEGAL_a16,  ILLEGAL_a16,  ILLEGAL_a16,  ILLEGAL_a16,  ILLEGAL_a16,  ILLEGAL_a16,  ILLEGAL_a16,
@@ -964,7 +977,7 @@ const OpFn OP_TABLE(fpu_8087_db)[256] = {
     // clang-format on
 };
 
-const OpFn OP_TABLE(fpu_8087_dc)[32] = {
+static const OpFn OP_TABLE(fpu_8087_dc)[32] = {
     // clang-format off
         opFADDd_a16, opFMULd_a16, opFCOMd_a16, opFCOMPd_a16, opFSUBd_a16, opFSUBRd_a16, opFDIVd_a16, opFDIVRd_a16,
         opFADDd_a16, opFMULd_a16, opFCOMd_a16, opFCOMPd_a16, opFSUBd_a16, opFSUBRd_a16, opFDIVd_a16, opFDIVRd_a16,
@@ -973,7 +986,7 @@ const OpFn OP_TABLE(fpu_8087_dc)[32] = {
     // clang-format on
 };
 
-const OpFn OP_TABLE(fpu_8087_dd)[256] = {
+static const OpFn OP_TABLE(fpu_8087_dd)[256] = {
     // clang-format off
         opFLDd_a16,    opFLDd_a16,    opFLDd_a16,    opFLDd_a16,    opFLDd_a16,    opFLDd_a16,    opFLDd_a16,    opFLDd_a16,
         ILLEGAL_a16,  ILLEGAL_a16,  ILLEGAL_a16,  ILLEGAL_a16,  ILLEGAL_a16,  ILLEGAL_a16,  ILLEGAL_a16,  ILLEGAL_a16,
@@ -1013,7 +1026,7 @@ const OpFn OP_TABLE(fpu_8087_dd)[256] = {
     // clang-format on
 };
 
-const OpFn OP_TABLE(fpu_8087_de)[256] = {
+static const OpFn OP_TABLE(fpu_8087_de)[256] = {
     // clang-format off
         opFADDiw_a16,  opFADDiw_a16,  opFADDiw_a16,  opFADDiw_a16,  opFADDiw_a16,  opFADDiw_a16,  opFADDiw_a16,  opFADDiw_a16,
         opFMULiw_a16,  opFMULiw_a16,  opFMULiw_a16,  opFMULiw_a16,  opFMULiw_a16,  opFMULiw_a16,  opFMULiw_a16,  opFMULiw_a16,
@@ -1053,7 +1066,7 @@ const OpFn OP_TABLE(fpu_8087_de)[256] = {
     // clang-format on
 };
 
-const OpFn OP_TABLE(fpu_8087_df)[256] = {
+static const OpFn OP_TABLE(fpu_8087_df)[256] = {
     // clang-format off
         opFILDiw_a16,  opFILDiw_a16,  opFILDiw_a16,  opFILDiw_a16,  opFILDiw_a16,  opFILDiw_a16,  opFILDiw_a16,  opFILDiw_a16,
         ILLEGAL_a16,  ILLEGAL_a16,  ILLEGAL_a16,  ILLEGAL_a16,  ILLEGAL_a16,  ILLEGAL_a16,  ILLEGAL_a16,  ILLEGAL_a16,

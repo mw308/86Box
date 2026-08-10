@@ -53,6 +53,11 @@ static pc_timer_t pic_timer;
 static int shadow = 0;
 static int elcr_enabled = 0;
 static int tmr_inited = 0;
+/* Persistent override for machines pairing a 286-or-higher accelerator CPU with a genuine
+   single-PIC XT board (e.g. the Intel Inboard 386/PC on a stock 5150/5160), where is286-driven
+   IMR-write timing would otherwise silently never schedule a pending-IRQ check at all. Set once
+   via pic_set_force_xt_imr_timing() by the owning device at init time. */
+static int force_xt_imr_timing = 0;
 static int pic_pci = 0;
 static int kbd_latch = 0;
 static int mouse_latch = 0;
@@ -61,6 +66,9 @@ static uint16_t smi_irq_mask   = 0x0000;
 static uint16_t smi_irq_status = 0x0000;
 
 static uint16_t latched_irqs   = 0x0000;
+static int16_t  irq_vector_override[8] = {
+    -1, -1, -1, -1, -1, -1, -1, -1
+};
 
 static void (*update_pending)(void);
 
@@ -251,8 +259,9 @@ pic_callback(UNUSED(void *priv))
 void
 pic_reset(void)
 {
-    int is_at = IS_AT(machine);
-    is_at     = is_at || (machines[machine].init == machine_xt_xi8088_init);
+    int is_at     = IS_AT(machine);
+    int is_zenith = machine_has_flags(machine, MACHINE_ZENITH);
+    is_at         = is_at || (machines[machine].init == machine_xt_xi8088_init);
 
     memset(&pic, 0, sizeof(pic_t));
     memset(&pic2, 0, sizeof(pic_t));
@@ -270,7 +279,8 @@ pic_reset(void)
     tmr_inited = 1;
 
     update_pending = is_at ? pic_update_pending_at : pic_update_pending_xt;
-    pic.at = pic2.at = is_at;
+    pic.at     = pic2.at     = is_at;
+    pic.zenith = pic2.zenith = is_zenith;
 
     smi_irq_mask = smi_irq_status = 0x0000;
 
@@ -284,6 +294,12 @@ pic_set_shadow(int sh)
     shadow = sh;
 }
 
+void
+pic_set_force_xt_imr_timing(int enable)
+{
+    force_xt_imr_timing = enable;
+}
+
 int
 pic_get_pci_flag(void)
 {
@@ -294,6 +310,13 @@ void
 pic_set_pci_flag(int pci)
 {
     pic_pci = pci;
+}
+
+void
+pic_set_vector_override(uint8_t irq, int vector)
+{
+    if (irq < 8)
+        irq_vector_override[irq] = (vector >= 0) ? (vector & 0xff) : -1;
 }
 
 static uint8_t
@@ -528,8 +551,17 @@ pic_write(uint16_t addr, uint8_t val, void *priv)
                 break;
             case STATE_NONE:
                 dev->imr = val;
-                if (is286)
+                if ((is286 && !force_xt_imr_timing) || dev->zenith)
                     update_pending();
+                else if (force_xt_imr_timing)
+                    /* Deliberately small but non-zero, unlike the stock formula below (which
+                       evaluates to exactly 0.0 and so hits timer_on_auto()'s "else timer_stop()"
+                       branch - i.e. it never actually schedules anything). This only affects a
+                       forced-XT-PIC-timing scenario opted into via pic_set_force_xt_imr_timing()
+                       (e.g. a 286-or-higher accelerator CPU on a genuine single-PIC XT board,
+                       like the Intel Inboard 386/PC) - every other machine's existing behavior
+                       via the branch below is left completely unchanged. */
+                    timer_on_auto(&pic_timer, 1.0);
                 else
                     timer_on_auto(&pic_timer, .0 * ((10000000.0 * (double) xt_cpu_multi) / (double) cpu_s->rspeed));
                 break;
@@ -658,6 +690,9 @@ pic_toggle_latch(int is_ps2)
 void
 pic_init(void)
 {
+    for (uint8_t irq = 0; irq < 8; irq++)
+        irq_vector_override[irq] = -1;
+
     pic_reset_hard();
 
     shadow = 0;
@@ -688,7 +723,6 @@ picint_common(uint16_t num, int level, int set, uint8_t *irq_state)
     uint8_t b;
     uint8_t slaves = 0;
     uint16_t w;
-    uint16_t lines = level ? 0x0000 : num;
     pic_t   *dev;
 
     /*
@@ -714,6 +748,8 @@ picint_common(uint16_t num, int level, int set, uint8_t *irq_state)
             }
         }
     }
+
+    uint16_t lines = level ? 0x0000 : num;
 
     if (!slaves)
         max = 8;
@@ -828,6 +864,8 @@ pic_irq_ack_read(pic_t *dev, int phase)
             dev->int_pending = 0;
             if (slave)
                 dev->data_bus = pic_irq_ack_read(dev->slaves[intr], phase);
+            else if ((dev == &pic) && (irq_vector_override[intr] >= 0))
+                dev->data_bus = irq_vector_override[intr];
             else
                 dev->data_bus = intr + (dev->icw2 & 0xf8);
             pic_auto_non_specific_eoi(dev);

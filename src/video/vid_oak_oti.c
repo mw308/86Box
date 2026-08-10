@@ -37,6 +37,7 @@
 #define BIOS_077_PATH         "roms/video/oti/oti077.vbi"
 #define BIOS_077_ACER100T_PATH "roms/machines/acer100t/oti077_acer100t.BIN"
 #define BIOS_077_PCS44C_PATH  "roms/machines/pcs44c/V032004G.25"
+#define BIOS_077_PB400_PATH   "roms/machines/pb400/PB_400_SYSTEM_VGA_BIOS.BIN"
 
 enum {
     OTI_037C         = 0,
@@ -46,7 +47,8 @@ enum {
     OTI_067_M300     = 4,
     OTI_077          = 5,
     OTI_077_ACER100T = 6,
-    OTI_077_PCS44C   = 7
+    OTI_077_PCS44C   = 7,
+    OTI_077_PB400    = 8
 };
 
 typedef struct {
@@ -105,7 +107,7 @@ oti_out(uint16_t addr, uint8_t val, void *priv)
         case 0x3c8:
         case 0x3c9:
             if ((oti->chip_id == OTI_077) || (oti->chip_id == OTI_077_ACER100T) ||
-                (oti->chip_id == OTI_077_PCS44C))
+                (oti->chip_id == OTI_077_PCS44C) || (oti->chip_id == OTI_077_PB400))
                 sc1148x_ramdac_out(addr, 0, val, svga->ramdac, svga);
             else
                 svga_out(addr, val, svga);
@@ -168,7 +170,7 @@ oti_out(uint16_t addr, uint8_t val, void *priv)
                         else
                             mem_mapping_enable(&svga->mapping);
                     } else if ((oti->chip_id == OTI_077) || (oti->chip_id == OTI_077_ACER100T) ||
-                               (oti->chip_id == OTI_077_PCS44C)) {
+                               (oti->chip_id == OTI_077_PCS44C) || (oti->chip_id == OTI_077_PB400)) {
                         svga->vram_display_mask = (val & 0x0c) ? oti->vram_mask : 0x3ffff;
 
                         switch ((val & 0xc0) >> 6) {
@@ -201,6 +203,10 @@ oti_out(uint16_t addr, uint8_t val, void *priv)
                         else
                             mem_mapping_enable(&svga->mapping);
                     }
+                    break;
+
+                case 0x0e:
+                    svga_recalctimings(svga);
                     break;
 
                 case 0x11:
@@ -254,7 +260,7 @@ oti_in(uint16_t addr, void *priv)
         case 0x3c8:
         case 0x3c9:
             if ((oti->chip_id == OTI_077) || (oti->chip_id == OTI_077_ACER100T) ||
-                (oti->chip_id == OTI_077_PCS44C))
+                (oti->chip_id == OTI_077_PCS44C) || (oti->chip_id == OTI_077_PB400))
                 temp = sc1148x_ramdac_in(addr, 0, svga->ramdac, svga);
             else
                 temp = svga_in(addr, svga);
@@ -377,7 +383,7 @@ oti_pos_in(UNUSED(uint16_t addr), void *priv)
 }
 
 static float
-oti_getclock(int clock)
+oti068_getclock(int clock)
 {
     float ret = 0.0;
 
@@ -389,14 +395,23 @@ oti_getclock(int clock)
         case 1:
             ret = 28322000.0;
             break;
+        case 2:
+            ret = 65000000.0;
+            break;
+        case 3:
+            ret = 44900000.0;
+            break;
         case 4:
-            ret = 14318000.0;
+            ret = 28322000.0;
             break;
         case 5:
-            ret = 16257000.0;
+            ret = 36000000.0;
+            break;
+        case 6:
+            ret = 40000000.0;
             break;
         case 7:
-            ret = 35500000.0;
+            ret = 36000000.0;
             break;
     }
 
@@ -409,7 +424,7 @@ oti_recalctimings(svga_t *svga)
     const oti_t *oti     = (oti_t *) svga->priv;
     int          clk_sel = ((svga->miscout >> 2) & 3) | ((oti->regs[0x0d] & 0x20) >> 3);
 
-    svga->clock = (cpuclock * (double) (1ULL << 32)) / oti_getclock(clk_sel);
+    svga->clock = (cpuclock * (double) (1ULL << 32)) / oti068_getclock(clk_sel);
 
     if (oti->chip_id > 0) {
         if (oti->regs[0x14] & 0x08)
@@ -424,7 +439,17 @@ oti_recalctimings(svga_t *svga)
         if (oti->regs[0x14] & 0x04)
             svga->vsyncstart += 0x400;
 
-        svga->interlace = oti->regs[0x14] & 0x80;
+        svga->interlace = !!(oti->regs[0x14] & 0x80);
+
+        if (!svga->scrblank && svga->attr_palette_enable) {
+            if (!(svga->gdcreg[6] & 1) && !(svga->attrregs[0x10] & 1))
+                svga->interlace = 0;
+        }
+
+        if (oti->regs[0x0e] & 0x80) {
+            svga->write_bank = 0;
+            svga->read_bank = 0;
+        }
     }
 
     if ((oti->regs[0x0d] & 0x0c) && !(oti->regs[0x0d] & 0x10))
@@ -442,10 +467,9 @@ oti_recalctimings(svga_t *svga)
 static void *
 oti_init(const device_t *info)
 {
-    oti_t      *oti   = malloc(sizeof(oti_t));
+    oti_t      *oti   = calloc(1, sizeof(oti_t));
     const char *romfn = NULL;
 
-    memset(oti, 0x00, sizeof(oti_t));
     oti->chip_id = info->local;
 
     oti->dipswitch_val = 0x18;
@@ -506,6 +530,12 @@ oti_init(const device_t *info)
             oti->pos = 0x08; /* Tell the BIOS the I/O ports are already enabled to avoid a double I/O handler mess. */
             io_sethandler(0x46e8, 1, oti_pos_in, NULL, NULL, oti_pos_out, NULL, NULL, oti);
             break;
+        case OTI_077_PB400:
+            romfn          = NULL;
+            oti->vram_size = device_get_config_int("memory");
+            oti->pos = 0x08; /* Tell the BIOS the I/O ports are already enabled to avoid a double I/O handler mess. */
+            io_sethandler(0x46e8, 1, oti_pos_in, NULL, NULL, oti_pos_out, NULL, NULL, oti);
+            break;
 
         default:
             break;
@@ -519,10 +549,10 @@ oti_init(const device_t *info)
 
     if (oti->chip_id == OTI_077_ACER100T) {
         /*
-           josephillips: Required to show all BIOS 
+           josephillips: Required to show all BIOS
            information on Acer 100T only
         */
-        video_inform(0x1, &timing_oti);   
+        video_inform(0x1, &timing_oti);
     } else
         video_inform(VIDEO_FLAG_TYPE_SPECIAL, &timing_oti);
 
@@ -530,7 +560,7 @@ oti_init(const device_t *info)
               oti_recalctimings, oti_in, oti_out, NULL, NULL);
 
     if ((oti->chip_id == OTI_077) || (oti->chip_id == OTI_077_ACER100T) ||
-        (oti->chip_id == OTI_077_PCS44C))
+        (oti->chip_id == OTI_077_PCS44C) || (oti->chip_id == OTI_077_PB400))
         oti->svga.ramdac = device_add(&sc11487_ramdac_device); /*Actually a 82c487, probably a clone.*/
 
     io_sethandler(0x03c0, 32,
@@ -538,7 +568,7 @@ oti_init(const device_t *info)
 
     oti->svga.miscout       = 1;
     oti->svga.packed_chain4 = 1;
-    
+
     return oti;
 }
 
@@ -590,6 +620,12 @@ static int
 oti077_pcs44c_available(void)
 {
     return (rom_present(BIOS_077_PCS44C_PATH));
+}
+
+static int
+oti077_pb400_available(void)
+{
+    return (rom_present(BIOS_077_PB400_PATH));
 }
 
 static int
@@ -712,6 +748,7 @@ const device_t oti037_pbl300sx_device = {
     .available     = NULL,
     .speed_changed = oti_speed_changed,
     .force_redraw  = oti_force_redraw,
+    .machine       = "Packard Bell PB300/PB320",
     .config        = NULL
 };
 
@@ -740,6 +777,7 @@ const device_t oti067_ama932j_device = {
     .available     = oti067_ama932j_available,
     .speed_changed = oti_speed_changed,
     .force_redraw  = oti_force_redraw,
+    .machine       = "Arche AMA-932J",
     .config        = oti067_ama932j_config
 };
 
@@ -754,6 +792,7 @@ const device_t oti067_m300_device = {
     .available     = oti067_m300_available,
     .speed_changed = oti_speed_changed,
     .force_redraw  = oti_force_redraw,
+    .machine       = "Olivetti M300-08/15",
     .config        = oti067_config
 };
 
@@ -782,6 +821,7 @@ const device_t oti077_acer100t_device = {
     .available     = oti077_acer100t_available,
     .speed_changed = oti_speed_changed,
     .force_redraw  = oti_force_redraw,
+    .machine       = "Acer 100T",
     .config        = oti077_acer100t_config
 };
 const device_t oti077_pcs44c_device = {
@@ -793,6 +833,21 @@ const device_t oti077_pcs44c_device = {
     .close         = oti_close,
     .reset         = NULL,
     .available     = oti077_pcs44c_available,
+    .speed_changed = oti_speed_changed,
+    .force_redraw  = oti_force_redraw,
+    .machine       = "Olivetti PCS 44/C",
+    .config        = oti077_acer100t_config
+};
+
+const device_t oti077_pb400_device = {
+    .name          = "Oak OTI-077 On-Board (Packard Bell PB400)",
+    .internal_name = "oti077_pb400",
+    .flags         = DEVICE_ISA,
+    .local         = 8,
+    .init          = oti_init,
+    .close         = oti_close,
+    .reset         = NULL,
+    .available     = oti077_pb400_available,
     .speed_changed = oti_speed_changed,
     .force_redraw  = oti_force_redraw,
     .config        = oti077_acer100t_config

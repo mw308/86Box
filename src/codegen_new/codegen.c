@@ -20,7 +20,6 @@
 #include "codegen_ops_helpers.h"
 
 #define MAX_INSTRUCTION_COUNT 50
-
 static struct {
     uint32_t pc;
     int      op_ssegs;
@@ -54,6 +53,7 @@ codegen_set_loop_start(ir_data_t *ir, int first_instruction)
 }
 
 int has_ea;
+extern uint32_t codegen_endpc;
 
 codeblock_t *codeblock;
 uint16_t    *codeblock_hash;
@@ -611,7 +611,7 @@ generate_call:
         int jump_cycles = 0;
 
         if (codegen_timing_jump_cycles)
-            codegen_timing_jump_cycles();
+            jump_cycles = codegen_timing_jump_cycles();
 
         if (jump_cycles)
             codegen_accumulate(ir, ACCREG_cycles, -jump_cycles);

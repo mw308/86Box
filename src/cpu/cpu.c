@@ -175,6 +175,23 @@ int cpu_prefetch_width;
 int cpu_mem_prefetch_cycles;
 int cpu_rom_prefetch_cycles;
 int cpu_waitstates;
+int io_waitstates; /* Extra cycles added to IN/OUT instruction timing (x86_ops_io.h) -
+                       cpu_waitstates only ever throttles memory bus cycles; this covers
+                       I/O port cycles, which real ISA-bus hardware paces at a fixed bus
+                       clock independent of an accelerator CPU's own speed. Set by
+                       devices like inboard386.c that need to compensate for a fast CPU
+                       core executing I/O-bound timing loops (BIOS self-tests etc.)
+                       written assuming genuine 8088-class per-instruction throughput. */
+int reg_op_waitstates; /* Extra cycles added to pure register/branch instruction timing
+                           (currently just LOOP, x86_ops_jump.h) - covers the case where a
+                           period BIOS/driver delay or self-test loop is built entirely from
+                           register-only instructions (no memory or I/O access at all), so
+                           neither cpu_waitstates nor io_waitstates apply. A 386+-class core
+                           executes these natively far faster per cycle than an 8088 even at
+                           a matched clock, so a pure LOOP-based delay calibrated for genuine
+                           8088 timing finishes far too quickly on an accelerated CPU unless
+                           this is compensated too. Set by inboard386.c the same way as
+                           io_waitstates. */
 int cpu_cache_int_enabled;
 int cpu_cache_ext_enabled;
 int cpu_flush_pending;
@@ -217,6 +234,7 @@ int is_k5;
 int is_k6;
 int is_p6;
 int is_cxsmm;
+int is_cx6x86;
 int hasfpu;
 
 int timing_rr;
@@ -282,6 +300,7 @@ uint8_t ccr4;
 uint8_t ccr5;
 uint8_t ccr6;
 uint8_t ccr7;
+uint8_t cxpmr;
 
 uint8_t reg_30 = 0x00;
 uint8_t arr[24] = { 0 };
@@ -508,6 +527,9 @@ SF_FPU_reset(void)
 void
 cpu_set(void)
 {
+    if (cpu_f == NULL)
+        return;
+
     cpu_inited = 1;
 
     cpu_effective = cpu;
@@ -547,8 +569,9 @@ cpu_set(void)
     is_k5      = !strcmp(cpu_f->manufacturer, "AMD") && (cpu_s->cpu_type > CPU_ENH_Am486DX) && (cpu_s->cpu_type < CPU_K6);
     is_k6      = (cpu_s->cpu_type >= CPU_K6) && !strcmp(cpu_f->manufacturer, "AMD");
     /* The Samuel 2 datasheet claims it's Celeron-compatible. */
-    is_p6    = (cpu_isintel && (cpu_s->cpu_type >= CPU_PENTIUMPRO)) || !strcmp(cpu_f->manufacturer, "VIA");
-    is_cxsmm = (!strcmp(cpu_f->manufacturer, "Cyrix") || !strcmp(cpu_f->manufacturer, "ST")) && (cpu_s->cpu_type >= CPU_Cx486S);
+    is_p6     = (cpu_isintel && (cpu_s->cpu_type >= CPU_PENTIUMPRO)) || !strcmp(cpu_f->manufacturer, "VIA");
+    is_cxsmm  = (!strcmp(cpu_f->manufacturer, "Cyrix") || !strcmp(cpu_f->manufacturer, "ST")) && (cpu_s->cpu_type >= CPU_Cx486S);
+    is_cx6x86 = (cpu_s->cpu_type >= CPU_Cx6x86) && (cpu_s->cpu_type <= CPU_Cx6x86L);
 
     cpu_isintel = cpu_isintel || !strcmp(cpu_f->manufacturer, "AMD");
 
@@ -775,6 +798,7 @@ cpu_set(void)
     cpu_cyrix_alignment = 0;
     cpu_cpurst_on_sr    = 0;
     cpu_CR4_mask        = 0;
+    cpu_features        = 0;
 
     switch (cpu_s->cpu_type) {
         case CPU_8088:
@@ -1540,9 +1564,9 @@ cpu_set(void)
             if (cpu_s->cpu_type >= CPU_CxGX1)
                 cpu_features |= CPU_FEATURE_MSR | CPU_FEATURE_CR4;
             if (cpu_s->cpu_type == CPU_Cx6x86MX)
-                cpu_features |= CPU_FEATURE_MMX;
-            if (cpu_s->cpu_type >= CPU_CxGX1)
-                cpu_CR4_mask = CR4_TSD | CR4_DE | CR4_PCE;
+                cpu_features |= CPU_FEATURE_MMX | CPU_FEATURE_CR4;
+            if ((cpu_s->cpu_type >= CPU_CxGX1) || (cpu_s->cpu_type == CPU_Cx6x86MX))
+                cpu_CR4_mask = CR4_TSD | CR4_DE | CR4_PCE | CR4_PGE;
 
 #    ifdef USE_DYNAREC
             codegen_timing_set(&codegen_timing_686);
@@ -1865,6 +1889,8 @@ cpu_set(void)
                 cpu_exec = exec386_2386;
     } else if (cpu_s->cpu_type >= CPU_286)
         cpu_exec = exec386_2386;
+    else if (is_nec)
+        cpu_exec = execvx0;
     else
         cpu_exec = execx86;
     mmx_init();
@@ -1897,7 +1923,7 @@ cpu_set_pci_speed(int speed)
 {
     if (speed)
         cpu_pci_speed = speed;
-    else if (cpu_busspeed < 42500000)
+    else if (cpu_busspeed < 40000000)
         cpu_pci_speed = cpu_busspeed;
     else if (cpu_busspeed < 84000000)
         cpu_pci_speed = cpu_busspeed / 2;
@@ -1911,7 +1937,15 @@ cpu_set_pci_speed(int speed)
     else if (speed)
         pc_speed_changed();
 
-    pci_burst_time    = cpu_s->rspeed / cpu_pci_speed;
+    if (cpu_pci_speed == 0)
+            pci_burst_time    = 2;
+    else {
+        if (cpu_s == NULL)
+            pci_burst_time    = 66666667 / cpu_pci_speed;
+        else
+            pci_burst_time    = cpu_s->rspeed / cpu_pci_speed;
+    }
+
     pci_nonburst_time = 4 * pci_burst_time;
 
     cpu_log("cpu_set_pci_speed(%d) = %d\n", speed, cpu_pci_speed);
@@ -1943,7 +1977,15 @@ cpu_set_agp_speed(int speed)
     else
         cpu_agp_speed = cpu_busspeed / 2;
 
-    agp_burst_time    = cpu_s->rspeed / cpu_agp_speed;
+    if (cpu_agp_speed == 0)
+        agp_burst_time    = 1;
+    else {
+        if (cpu_s == NULL)
+            agp_burst_time    = 66666667 / cpu_agp_speed;
+        else
+            agp_burst_time    = cpu_s->rspeed / cpu_agp_speed;
+    }
+
     agp_nonburst_time = 4 * agp_burst_time;
 
     cpu_log("cpu_set_agp_speed(%d) = %d\n", speed, cpu_agp_speed);
@@ -2434,7 +2476,7 @@ cpu_CPUID(void)
             } else if (EAX == 1) {
                 EAX = CPUID;
                 EBX = ECX = 0;
-                EDX       = CPUID_FPU | CPUID_DE | CPUID_TSC | CPUID_MSR | CPUID_CMPXCHG8B;
+                EDX       = CPUID_FPU | CPUID_DE | CPUID_TSC | CPUID_MSR | CPUID_CMPXCHG8B | CPUID_PGE;
             } else
                 EAX = EBX = ECX = EDX = 0;
             break;
@@ -2448,7 +2490,7 @@ cpu_CPUID(void)
             } else if (EAX == 1) {
                 EAX = CPUID;
                 EBX = ECX = 0;
-                EDX       = CPUID_FPU | CPUID_DE | CPUID_TSC | CPUID_MSR | CPUID_CMPXCHG8B | CPUID_CMOV | CPUID_MMX;
+                EDX       = CPUID_FPU | CPUID_DE | CPUID_TSC | CPUID_MSR | CPUID_CMPXCHG8B | CPUID_CMOV | CPUID_MMX | CPUID_PGE;
             } else
                 EAX = EBX = ECX = EDX = 0;
             break;
@@ -4265,7 +4307,7 @@ cpu_write(uint16_t addr, uint8_t val, UNUSED(void *priv))
         cyrix_addr = val;
     else if (addr < 0xf1)  switch (cyrix_addr) {
         default:
-            if ((cyrix_addr >= 0xc0) && (cyrix_addr != 0xff))
+            if ((cyrix_addr >= 0xc0) && (cyrix_addr != 0xff) && (cyrix_addr != 0xf2))
                 fatal("Writing unimplemented Cyrix register %02X\n", cyrix_addr);
             break;
 
@@ -4359,6 +4401,10 @@ cpu_write(uint16_t addr, uint8_t val, UNUSED(void *priv))
         case 0xeb: /* CCR7 */
             ccr7 = val & 5;
             break;
+        case 0xf0: /* PMR (Cx5x86) */
+            if (cpu_s->cpu_type == CPU_Cx5x86)
+                cxpmr = val;
+            break;
     }
 }
 
@@ -4425,6 +4471,9 @@ cpu_read(uint16_t addr, UNUSED(void *priv))
         case 0xeb:
             ret = ccr7;
             break;
+        case 0xf0: /* PMR (Cx5x86) */
+            ret = cxpmr;
+            break;
         case 0xfe:
             ret = cpu_s->cyrix_id & 0xff;
             break;
@@ -4464,44 +4513,46 @@ x86_setopcodes_2386(const OpFn *opcodes, const OpFn *opcodes_0f)
 void
 cpu_update_waitstates(void)
 {
-    cpu_s = (CPU *) &cpu_f->cpus[cpu_effective];
+    if (cpu_f != NULL) {
+        cpu_s = (CPU *) &cpu_f->cpus[cpu_effective];
 
-    if (is486)
-        cpu_prefetch_width = 16;
-    else
-        cpu_prefetch_width = cpu_16bitbus ? 2 : 4;
+        if (is486)
+            cpu_prefetch_width = 16;
+        else
+            cpu_prefetch_width = cpu_16bitbus ? 2 : 4;
 
-    if (cpu_cache_int_enabled) {
-        /* Disable prefetch emulation */
-        cpu_prefetch_cycles = 0;
-    } else if (cpu_cache_ext_enabled) {
-        /* Use cache timings */
-        cpu_prefetch_cycles = cpu_s->cache_read_cycles;
-        cpu_cycles_read     = cpu_s->cache_read_cycles;
-        cpu_cycles_read_l   = (cpu_16bitbus ? 2 : 1) * cpu_s->cache_read_cycles;
-        cpu_cycles_write    = cpu_s->cache_write_cycles;
-        cpu_cycles_write_l  = (cpu_16bitbus ? 2 : 1) * cpu_s->cache_write_cycles;
-    } else if (cpu_waitstates && (cpu_s->cpu_type >= CPU_286 && cpu_s->cpu_type <= CPU_386DX)) {
-        /* Waitstates override */
-        cpu_prefetch_cycles = cpu_waitstates + 1;
-        cpu_cycles_read     = cpu_waitstates + 1;
-        cpu_cycles_read_l   = (cpu_16bitbus ? 2 : 1) * (cpu_waitstates + 1);
-        cpu_cycles_write    = cpu_waitstates + 1;
-        cpu_cycles_write_l  = (cpu_16bitbus ? 2 : 1) * (cpu_waitstates + 1);
-    } else {
-        /* Use memory timings */
-        cpu_prefetch_cycles = cpu_s->mem_read_cycles;
-        cpu_cycles_read     = cpu_s->mem_read_cycles;
-        cpu_cycles_read_l   = (cpu_16bitbus ? 2 : 1) * cpu_s->mem_read_cycles;
-        cpu_cycles_write    = cpu_s->mem_write_cycles;
-        cpu_cycles_write_l  = (cpu_16bitbus ? 2 : 1) * cpu_s->mem_write_cycles;
+        if (cpu_cache_int_enabled) {
+            /* Disable prefetch emulation */
+            cpu_prefetch_cycles = 0;
+        } else if (cpu_cache_ext_enabled) {
+            /* Use cache timings */
+            cpu_prefetch_cycles = cpu_s->cache_read_cycles;
+            cpu_cycles_read     = cpu_s->cache_read_cycles;
+            cpu_cycles_read_l   = (cpu_16bitbus ? 2 : 1) * cpu_s->cache_read_cycles;
+            cpu_cycles_write    = cpu_s->cache_write_cycles;
+            cpu_cycles_write_l  = (cpu_16bitbus ? 2 : 1) * cpu_s->cache_write_cycles;
+        } else if (cpu_waitstates && (cpu_s->cpu_type >= CPU_286 && cpu_s->cpu_type <= CPU_386DX)) {
+            /* Waitstates override */
+            cpu_prefetch_cycles = cpu_waitstates + 1;
+            cpu_cycles_read     = cpu_waitstates + 1;
+            cpu_cycles_read_l   = (cpu_16bitbus ? 2 : 1) * (cpu_waitstates + 1);
+            cpu_cycles_write    = cpu_waitstates + 1;
+            cpu_cycles_write_l  = (cpu_16bitbus ? 2 : 1) * (cpu_waitstates + 1);
+        } else {
+            /* Use memory timings */
+            cpu_prefetch_cycles = cpu_s->mem_read_cycles;
+            cpu_cycles_read     = cpu_s->mem_read_cycles;
+            cpu_cycles_read_l   = (cpu_16bitbus ? 2 : 1) * cpu_s->mem_read_cycles;
+            cpu_cycles_write    = cpu_s->mem_write_cycles;
+            cpu_cycles_write_l  = (cpu_16bitbus ? 2 : 1) * cpu_s->mem_write_cycles;
+        }
+
+        if (is486)
+            cpu_prefetch_cycles = (cpu_prefetch_cycles * 11) / 16;
+
+        cpu_mem_prefetch_cycles = cpu_prefetch_cycles;
+
+        if (cpu_s->rspeed <= 8000000)
+            cpu_rom_prefetch_cycles = cpu_mem_prefetch_cycles;
     }
-
-    if (is486)
-        cpu_prefetch_cycles = (cpu_prefetch_cycles * 11) / 16;
-
-    cpu_mem_prefetch_cycles = cpu_prefetch_cycles;
-
-    if (cpu_s->rspeed <= 8000000)
-        cpu_rom_prefetch_cycles = cpu_mem_prefetch_cycles;
 }

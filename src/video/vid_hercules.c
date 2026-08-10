@@ -47,8 +47,16 @@ recalc_timings(hercules_t *dev)
     _dispontime *= HERCCONST;
     _dispofftime *= HERCCONST;
 
-    dev->dispontime  = (uint64_t) (_dispontime);
-    dev->dispofftime = (uint64_t) (_dispofftime);
+    if (dev->ctrl & 0x02) {
+        _dispontime *= 16;
+        _dispofftime *= 16;
+    } else {
+        _dispontime *= 9;
+        _dispofftime *= 9;
+    }
+
+    dev->dispontime  = (uint64_t) (int64_t) (_dispontime);
+    dev->dispofftime = (uint64_t) (int64_t) (_dispofftime);
 }
 
 static uint8_t crtcmask[32] = {
@@ -531,14 +539,13 @@ hercules_init(UNUSED(const device_t *info))
 {
     hercules_t *dev;
 
-    dev = (hercules_t *) malloc(sizeof(hercules_t));
-    memset(dev, 0x00, sizeof(hercules_t));
+    dev = (hercules_t *) calloc(1, sizeof(hercules_t));
     dev->monitor_index = monitor_index_global;
 
     overscan_x = 16;
     overscan_y = 28;
 
-    dev->vram = (uint8_t *) malloc(0x10000);
+    dev->vram = (uint8_t *) calloc(1, 0x10000);
 
     switch(device_get_config_int("font")) {
         case 0:
@@ -604,7 +611,7 @@ hercules_init(UNUSED(const device_t *info))
     video_inform(VIDEO_FLAG_TYPE_MDA, &timing_hercules);
 
     /* Force the LPT3 port to be enabled. */
-    dev->lpt = device_add_inst(&lpt_port_device, 1);
+    dev->lpt = device_add_inst(&lpt_port_device, -1);
     lpt_port_setup(dev->lpt, LPT_MDA_ADDR);
     lpt_set_3bc_used(1);
 

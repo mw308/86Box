@@ -246,10 +246,8 @@ exec386_2386(int32_t cycs)
             int ins_fetch_fault = 0;
             ins_cycles = cycles;
 
-#ifndef USE_NEW_DYNAREC
             oldcs  = CS;
             oldcpl = CPL;
-#endif
             cpu_state.oldpc = cpu_state.pc;
             cpu_state.op32  = use32;
 
@@ -287,7 +285,7 @@ exec386_2386(int32_t cycs)
 #endif
                 opcode = fetchdat & 0xFF;
                 fetchdat >>= 8;
-                trap |= !!(cpu_state.flags & T_FLAG);
+                trap = (trap & ~1) | (!!(cpu_state.flags & T_FLAG));
 
                 cpu_state.pc++;
                 if (opcode == 0xf0)
@@ -346,19 +344,16 @@ block_ended:
             } else if (new_ne) {
                 flags_rebuild();
                 new_ne = 0;
-#ifndef USE_NEW_DYNAREC
                 oldcs = CS;
-#endif
                 cpu_state.oldpc = cpu_state.pc;
                 x86_int(16);
             } else if (trap) {
                 flags_rebuild();
                 if (trap & 2) dr[6] |= 0x8000;
                 if (trap & 1) dr[6] |= 0x4000;
+                if (trap & 16) dr[6] |= 0x2000;
                 trap = 0;
-#ifndef USE_NEW_DYNAREC
                 oldcs = CS;
-#endif
                 cpu_state.oldpc = cpu_state.pc;
                 x86_int(1);
             }
@@ -366,9 +361,7 @@ block_ended:
             if (smi_line)
                 enter_smm_check(0);
             else if (nmi && nmi_enable && nmi_mask) {
-#ifndef USE_NEW_DYNAREC
                 oldcs = CS;
-#endif
                 cpu_state.oldpc = cpu_state.pc;
                 x86_int(2);
                 nmi_enable = 0;

@@ -105,6 +105,9 @@ extern const device_t i450kx_device;
 extern const device_t sio_device;
 extern const device_t sio_zb_device;
 
+#define PIIX4_NVR_AMI_1995  0x0000000100000000
+#define PIIX4_NVR_AMI_1995J 0x0000000200000000
+
 extern const device_t piix_device;
 extern const device_t piix_no_mirq_device;
 extern const device_t piix_old_device;
@@ -145,6 +148,8 @@ extern const device_t opti895_device;
 
 extern const device_t opti5x7_device;
 extern const device_t opti5x7_pci_device;
+extern const device_t opti55x_device;
+extern const device_t opti55x_noide_device;
 
 /* Philips */
 extern const device_t philips_device;
@@ -202,6 +207,9 @@ extern const device_t via_apro_device;
 extern const device_t via_apro133_device;
 extern const device_t via_apro133a_device;
 extern const device_t via_vt8601_device;
+
+#define VIA_PIPC_NO_KBC 0x0000000100000000ULL
+
 extern const device_t via_vt82c586b_device;
 extern const device_t via_vt82c596a_device;
 extern const device_t via_vt82c596b_device;
@@ -231,6 +239,9 @@ extern const device_t nec_mate_unk_device;
 extern const device_t phoenix_486_jumper_device;
 extern const device_t phoenix_486_jumper_pci_device;
 extern const device_t phoenix_486_jumper_pci_pb600_device;
+extern const device_t phoenix_486_jumper_monsoon_device;
+extern const device_t phoenix_486_jumper_pb400_device;
+extern const device_t phoenix_486_jumper_pb430_device;
 
 extern const device_t ast_readout_device;
 extern const device_t ast_nvr_device;

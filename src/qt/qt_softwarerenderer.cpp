@@ -21,6 +21,10 @@
 #include <QClipboard>
 #include <QPainter>
 #include <QResizeEvent>
+#include <QScreen>
+#include <QTimer>
+#include "qt_util.hpp"
+#include "qt_osd.hpp"
 
 extern "C" {
 #include <86box/86box.h>
@@ -41,6 +45,24 @@ SoftwareRenderer::SoftwareRenderer(QWidget *parent)
     buf_usage[0].clear();
     buf_usage[1].clear();
     this->setMouseTracking(true);
+
+    /* The OSD animates and reacts to input even when the machine is paused, so
+     * keep refreshing while it is on screen. */
+    connect(new QTimer(this), &QTimer::timeout, this, [this]() {
+        if (dopause && qt_osd_is_visible())
+            this->render();
+
+        if (!qt_osd_is_visible() && was_osd_visible)
+            this->render();
+
+        was_osd_visible = qt_osd_is_visible();
+    });
+}
+
+void
+SoftwareRenderer::finalize()
+{
+    qt_osd_shutdown();
 }
 
 void
@@ -114,16 +136,30 @@ SoftwareRenderer::onBlit(int buf_idx, int x, int y, int w, int h)
         plat_tempfile(fn, NULL, (char *) ".png");
         strcat(path, fn);
 
+        qreal win_scale = util::screenOfWidget(this)->devicePixelRatio();
+        QSize qs = RendererCommon::parentWidget->size();
         QPixmap pixmap(RendererCommon::parentWidget->size());
         RendererCommon::parentWidget->render(&pixmap);
-        QImage image = pixmap.toImage();
+        QImage image;
+        if (win_scale == 1.0)
+            image = pixmap.toImage();
+        else
+            image = pixmap.toImage().scaled(qs * win_scale, Qt::IgnoreAspectRatio,
+                                            Qt::SmoothTransformation);
         image.save(path, "png");
         monitors[r_monitor_index].mon_screenshots--;
     }
     if (monitors[r_monitor_index].mon_screenshots_clipboard) {
+        qreal win_scale = util::screenOfWidget(this)->devicePixelRatio();
+        QSize qs = RendererCommon::parentWidget->size();
         QPixmap pixmap(RendererCommon::parentWidget->size());
         RendererCommon::parentWidget->render(&pixmap);
-        QImage image = pixmap.toImage();
+        QImage image;
+        if (win_scale == 1.0)
+            image = pixmap.toImage();
+        else
+            image = pixmap.toImage().scaled(qs * win_scale, Qt::IgnoreAspectRatio,
+                                            Qt::SmoothTransformation);
         QClipboard *clipboard = QApplication::clipboard();
         clipboard->setImage(image, QClipboard::Clipboard);
         monitors[r_monitor_index].mon_screenshots_clipboard--;
@@ -152,7 +188,10 @@ SoftwareRenderer::event(QEvent *event)
 void
 SoftwareRenderer::onPaint(QPaintDevice *device)
 {
-    if (cur_image == -1)
+    const bool osd = 1;
+    /* Repaint when the OSD is up, or once more right after it closes so a
+     * lingering overlay is cleared even while the machine is paused. */
+    if (cur_image == -1 && !osd && !osd_drawn_last)
         return;
 
     QPainter painter(device);
@@ -162,9 +201,26 @@ SoftwareRenderer::onPaint(QPaintDevice *device)
 #else
     painter.fillRect(0, 0, device->width(), device->height(), Qt::black);
 #endif
-    painter.setCompositionMode(QPainter::CompositionMode_Plus);
-    painter.drawImage(destination, *images[cur_image], source);
+    if (cur_image != -1) {
+        painter.setCompositionMode(QPainter::CompositionMode_Plus);
+        painter.drawImage(destination, *images[cur_image], source);
+        painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
+    }
+
+    if (osd) {
+        painter.setRenderHint(QPainter::SmoothPixmapTransform, false);
+        qt_osd_set_layout_scale_hint(osdLayoutScaleHint());
+        const QImage *frame = qt_osd_render_software(width(), height(), devicePixelRatioF());
+        if (frame)
+            painter.drawImage(QPointF(0, 0), *frame);
+    }
     painter.end();
+    osd_drawn_last = osd;
+
+    /* The OSD animates and reacts to input even when the machine is paused, so
+     * keep refreshing while it is on screen. */
+    if (qt_osd_is_visible() && !dopause)
+        QTimer::singleShot(16, this, [this] { update(); });
 }
 
 std::vector<std::tuple<uint8_t *, std::atomic_flag *>>

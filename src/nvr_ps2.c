@@ -46,6 +46,7 @@
 #include <86box/nvr.h>
 #include <86box/nvr_ps2.h>
 #include <86box/rom.h>
+#include "cpu.h"
 
 typedef struct ps2_nvr_t {
     int addr;
@@ -121,7 +122,7 @@ ps2_nvr_init(const device_t *info)
 
     /* Set up the NVR file's name. */
     c       = strlen(machine_get_nvr_name()) + 9;
-    nvr->fn = (char *) malloc(c + 1);
+    nvr->fn = (char *) calloc(1, c + 1);
     sprintf(nvr->fn, "%s_sec.nvr", machine_get_nvr_name());
 
     io_sethandler(0x0074, 3,
@@ -129,10 +130,9 @@ ps2_nvr_init(const device_t *info)
 
     fp = nvr_fopen(nvr->fn, "rb");
 
-    nvr->ram = (uint8_t *) malloc(nvr->size);
-    memset(nvr->ram, 0xff, nvr->size);
+    nvr->ram = (uint8_t *) calloc(1, nvr->size);
     if (fp != NULL) {
-        if (fread(nvr->ram, 1, nvr->size, fp) != nvr->size)
+        if ((cpu_s != NULL) && (fread(nvr->ram, 1, nvr->size, fp) != nvr->size))
             fatal("ps2_nvr_init(): Error reading EEPROM data\n");
         fclose(fp);
     }

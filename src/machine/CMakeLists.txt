@@ -20,12 +20,14 @@ add_library(mch OBJECT
     machine_table.c
     m_xt.c
     m_xt_t1000.c
+    m_xt_jukost.c
     m_xt_xi8088.c
     m_pcjr.c
     m_amstrad.c
     m_europc.c
     m_elt.c
     m_xt_olivetti.c
+    m_xt_ibm5550.c
     m_tandy.c
     m_v86p.c
     m_at_t3100e.c

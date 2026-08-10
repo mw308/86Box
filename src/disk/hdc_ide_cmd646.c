@@ -30,6 +30,7 @@
 #include <86box/mem.h>
 #include <86box/pci.h>
 #include <86box/pic.h>
+#include <86box/plat_unused.h>
 #include <86box/timer.h>
 #include <86box/hdc.h>
 #include <86box/hdc_ide.h>
@@ -296,7 +297,7 @@ cmd646_bios_handler(cmd646_t *dev)
 }
 
 static void
-cmd646_pci_write(int func, int addr, uint8_t val, void *priv)
+cmd646_pci_write(int func, int addr, UNUSED(int len), uint8_t val, void *priv)
 {
     cmd646_t *dev         = (cmd646_t *) priv;
     int       reg50       = dev->regs[0x50];
@@ -481,7 +482,7 @@ cmd646_pci_write(int func, int addr, uint8_t val, void *priv)
 }
 
 static uint8_t
-cmd646_pci_read(int func, int addr, void *priv)
+cmd646_pci_read(int func, int addr, UNUSED(int len), void *priv)
 {
     cmd646_t *dev         = (cmd646_t *) priv;
     uint8_t   ret         = 0xff;
@@ -675,13 +676,10 @@ cmd646_init(const device_t *info)
 
     dev->local = info->local;
 
-    device_add(&ide_pci_2ch_device);
-
     if (info->local & 0x80000) {
         first = 2;
         device_add(&ide_pci_ter_qua_2ch_device);
-    } else
-        device_add(&ide_pci_2ch_device);
+    }
 
     if (info->local & CMD64X_ONBOARD)
         pci_add_card(PCI_ADD_IDE, cmd646_pci_read, cmd646_pci_write, dev, &dev->pci_slot);

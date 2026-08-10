@@ -527,6 +527,7 @@ extern int is_k5;
 extern int is_k6;
 extern int is_p6;
 extern int is_cxsmm;
+extern int is_cx6x86;
 extern int hascache;
 extern int isibm486;
 extern int is_mazovia;
@@ -605,6 +606,7 @@ extern uint8_t ccr4;
 extern uint8_t ccr5;
 extern uint8_t ccr6;
 extern uint8_t ccr7;
+extern uint8_t cxpmr;
 
 /*Segments -
   _cs,_ds,_es,_ss are the segment structures
@@ -639,6 +641,8 @@ extern int cpu_prefetch_width;
 extern int cpu_mem_prefetch_cycles;
 extern int cpu_rom_prefetch_cycles;
 extern int cpu_waitstates;
+extern int io_waitstates;
+extern int reg_op_waitstates;
 extern int cpu_flush_pending;
 extern int cpu_old_paging;
 extern int cpu_cache_int_enabled;
@@ -718,6 +722,8 @@ extern void codegen_reset(void);
 extern void cpu_set_edx(void);
 extern int  divl(uint32_t val);
 extern void execx86(int32_t cycs);
+extern void execx86_new(int32_t cycs);
+extern void execvx0(int32_t cycs);
 extern void enter_smm(int in_hlt);
 extern void enter_smm_check(int in_hlt);
 extern void leave_smm(void);
@@ -728,6 +734,7 @@ extern int  idivl(int32_t val);
 extern void resetmcr(void);
 extern void resetx86(void);
 extern void refreshread(void);
+extern void refreshread_vx0(void);
 extern void resetreadlookup(void);
 extern void softresetx86(void);
 extern void hardresetx86(void);
@@ -809,6 +816,8 @@ extern void SF_FPU_reset(void);
 extern void reset_808x(int hard);
 extern void interrupt_808x(uint16_t addr);
 
+extern void reset_vx0(int hard);
+
 extern void cpu_register_fast_off_handler(void *timer);
 extern void cpu_fast_off_advance(void);
 extern void cpu_fast_off_period_set(uint16_t vla, double period);
@@ -844,13 +853,24 @@ extern int cpu_override_interpreter;
 
 extern int is_lock_legal(uint32_t fetchdat);
 
-extern void     prefetch_queue_set_pos(int pos);
-extern void     prefetch_queue_set_ip(uint16_t ip);
-extern void     prefetch_queue_set_prefetching(int p);
-extern int      prefetch_queue_get_pos(void);
-extern uint16_t prefetch_queue_get_ip(void);
-extern int      prefetch_queue_get_prefetching(void);
-extern int      prefetch_queue_get_size(void);
+extern void     (*prefetch_queue_set_pos)(int pos);
+extern void     (*prefetch_queue_set_ip)(uint16_t ip);
+extern void     (*prefetch_queue_set_prefetching)(int p);
+extern int      (*prefetch_queue_get_pos)(void);
+extern uint16_t (*prefetch_queue_get_ip)(void);
+extern int      (*prefetch_queue_get_prefetching)(void);
+extern int      (*prefetch_queue_get_size)(void);
+
+extern void    i808x_hook_prefetch_queue(void     (*pf_set_pos)(int pos),
+                                         void     (*pf_set_ip)(uint16_t ip),
+                                         void     (*pf_set_prefetching)(int p),
+                                         int      (*pf_get_pos)(void),
+                                         uint16_t (*pf_get_ip)(void),
+                                         int      (*pf_get_prefetching)(void),
+                                         int      (*pf_get_size)(void),
+                                         void     (*c_wait)(int c, int bus));
+
+extern void    wait_cycs(int c, int bus);
 
 #define prefetch_queue_set_suspended(s) prefetch_queue_set_prefetching(!s)
 #define prefetch_queue_get_suspended !prefetch_queue_get_prefetching

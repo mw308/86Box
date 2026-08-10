@@ -125,7 +125,7 @@ static const device_config_t ibmat_config[] = {
 
 const device_t ibmat_device = {
     .name          = "IBM AT",
-    .internal_name = "ibmat_device",
+    .internal_name = "ibmat",
     .flags         = 0,
     .local         = 0,
     .init          = NULL,
@@ -140,7 +140,7 @@ const device_t ibmat_device = {
 static void
 machine_at_ibm_common_init(const machine_t *model)
 {
-    machine_at_common_init_ex(model, 1);
+    machine_at_common_init(model);
 
     device_add_params(machine_get_kbc_device(machine), (void *) model->kbc_params);
 
@@ -197,8 +197,8 @@ static const device_config_t ibmxt286_config[] = {
 };
 
 const device_t ibmxt286_device = {
-    .name          = "IBM XT Model 286",
-    .internal_name = "ibmxt286_device",
+    .name          = "IBM XT model 286",
+    .internal_name = "ibmxt286",
     .flags         = 0,
     .local         = 0,
     .init          = NULL,
@@ -310,6 +310,23 @@ machine_at_portableiii_init(const machine_t *model)
 
     machine_at_common_init(model);
     device_add_params(machine_get_kbc_device(machine), (void *) model->kbc_params);
+
+    return ret;
+}
+
+int
+machine_at_ft286_init(const machine_t *model)
+{
+    int ret;
+
+    ret = bios_load_interleaved("roms/machines/ft286/286-Access methods-ROM2.BIN",
+                                "roms/machines/ft286/286-Access methods-ROM4.BIN",
+                                0x000e0000, 131072, 0);
+
+    if (bios_only || !ret)
+        return ret;
+
+    machine_at_ibm_common_init(model);
 
     return ret;
 }
@@ -510,8 +527,7 @@ machine_at_m290_init(const machine_t *model)
     if (bios_only || !ret)
         return ret;
 
-    machine_at_common_init_ex(model, 6);
-    device_add(&amstrad_megapc_nvr_device);
+    machine_at_common_init(model);
 
     device_add(&olivetti_eva_device);
     device_add(&port_6x_olivetti_device);
@@ -630,7 +646,7 @@ machine_at_siemens_init(const machine_t *model)
     if (bios_only || !ret)
         return ret;
 
-    machine_at_common_init_ex(model, 1);
+    machine_at_common_init(model);
 
     device_add_params(machine_get_kbc_device(machine), (void *) model->kbc_params);
 
@@ -681,6 +697,23 @@ machine_at_dells200_init(const machine_t *model)
     ret = bios_load_interleaved("roms/machines/dells200/dellL200256_LO_@DIP28.BIN",
                                 "roms/machines/dells200/Dell200256_HI_@DIP28.BIN",
                                 0x000f0000, 65536, 0);
+
+    if (bios_only || !ret)
+        return ret;
+
+    machine_at_ctat_common_init(model);
+
+    return ret;
+}
+
+int
+machine_at_ftbaby286_init(const machine_t *model)
+{
+    int ret;
+
+    ret = bios_load_interleaved("roms/machines/ftbaby286/AMI286_u17.bin",
+                                "roms/machines/ftbaby286/AMI286_u18.bin",
+                                0x000f8000, 32768, 0);
 
     if (bios_only || !ret)
         return ret;
@@ -923,6 +956,29 @@ machine_at_3302_init(const machine_t *model)
     return ret;
 }
 
+int
+machine_at_n8810m30_init(const machine_t *model) /* Onboard SCSI not yet emulated */
+{
+    int ret;
+
+    ret = bios_load_linear("roms/machines/n8810m30/at286bios_53889.00.0.17jr.BIN",
+                           0x000e0000, 131072, 0);
+
+    if (bios_only || !ret)
+        return ret;
+
+    machine_at_common_init(model);
+
+    device_add(&neat_device);
+
+    if (fdc_current[0] == FDC_INTERNAL)
+        device_add(&fdc_at_device);
+
+    device_add_params(machine_get_kbc_device(machine), (void *) model->kbc_params);
+
+    return ret;
+}
+
 /* SCAMP */
 int
 machine_at_pc7286_init(const machine_t *model)
@@ -935,7 +991,7 @@ machine_at_pc7286_init(const machine_t *model)
     if (bios_only || !ret)
         return ret;
 
-    machine_at_common_init_ex(model, 2);
+    machine_at_common_init(model);
 
     if (gfxcard[0] == VID_INTERNAL)
         device_add(machine_get_vid_device(machine));

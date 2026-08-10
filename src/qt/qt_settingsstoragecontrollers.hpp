@@ -14,7 +14,10 @@ public:
     explicit SettingsStorageControllers(QWidget *parent = nullptr);
     ~SettingsStorageControllers();
 
-    void save();
+    int  changed();
+
+    void restore();
+    void save(int soft);
 
 public slots:
     void onCurrentMachineChanged(int machineId);
@@ -44,9 +47,21 @@ private slots:
     void on_comboBoxSCSI4_currentIndexChanged(int index);
     void on_pushButtonSCSI4_clicked();
 
+    void on_checkBoxFloppyTape_stateChanged(int state);
+
 private:
     Ui::SettingsStorageControllers *ui;
     int                             machineId = 0;
+
+    int                             hdc_cfg_changed[4]          = { 0, 0, 0, 0 };
+    int                             scsi_card_cfg_changed[4]    = { 0, 0, 0, 0 };
+    int                             fdc_cfg_changed             = 0;
+    int                             cdrom_interface_cfg_changed = 0;
+
+    SettingsCompleter *scFD;
+    SettingsCompleter *scHD[4];
+    SettingsCompleter *scCDInterface;
+    SettingsCompleter *scSCSI[4];
 };
 
 #endif // QT_SETTINGSSTORAGECONTROLLERS_HPP
