@@ -2476,6 +2476,15 @@ acpi_reset(void *priv)
         dev->regs.gp_tmr = 0xff;
         dev->regs.gpe_io = 0x00030b9f;
         dev->regs.gpe_mul = 0x1001;
+
+        /* BCM IN530 / GVC FR520 / Packard Bell Miami:
+           The board-level SiS5595 GPIO inputs are externally pulled high
+           when their jumpers/signals are inactive.  In particular, JP16
+           (Clear CMOS) is open for normal operation and is asserted by
+           grounding/closing the input.  Leaving gpe_pin at its generic
+           zero-filled reset state makes the BIOS believe JP16 is fitted. */
+        if (machines[machine].init == machine_at_in530_init)
+            dev->regs.gpe_pin = 0x0003ffff;
     }
 }
 
