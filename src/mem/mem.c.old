@@ -781,19 +781,6 @@ readmembl(uint32_t addr)
 void
 writemembl(uint32_t addr, uint8_t val)
 {
-    /*
-     * BCM IN530 diagnostic workaround.
-     *
-     * During the POST-98 USB/SMM sequence the BIOS correctly stores 02h
-     * (two OHCI root-hub ports) at physical 000024A5, then a later SMM pass
-     * attempts to overwrite the same byte with FFh.  FFh makes the BIOS's
-     * 8-bit port-initialisation loop wrap forever.
-     *
-     * Preserve the previously valid value only for this exact SMM write.
-     * This is intentionally a diagnostic workaround, not the final fix.
-     */
-    if (in_smm && addr == 0x000024a5 && val == 0xff)
-        return;
     mem_mapping_t *map;
     uint64_t       a;
 
