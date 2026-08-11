@@ -143,6 +143,7 @@ const machine_filter_t machine_chipsets[] = {
     { "SiS 5511",                   MACHINE_CHIPSET_SIS_5511            },
     { "SiS 5571",                   MACHINE_CHIPSET_SIS_5571            },
     { "SiS 5581",                   MACHINE_CHIPSET_SIS_5581            },
+    { "SiS 530",                    MACHINE_CHIPSET_SIS_530             },
     { "SiS 5591",                   MACHINE_CHIPSET_SIS_5591            },
     { "SiS (5)600",                 MACHINE_CHIPSET_SIS_5600            },
     { "SMSC VictoryBX-66",          MACHINE_CHIPSET_SMSC_VICTORYBX_66   },
@@ -19981,6 +19982,56 @@ const machine_t machines[] = {
         .snd_device               = NULL,
         .net_device               = NULL,
         .aliases                  = { "" }
+    },
+
+    /* SiS 530 / 5595 */
+    /* BCM IN530 / GVC FR520 / Packard Bell Miami. Bare-bones bring-up. */
+    {
+        .name              = "[SiS 530] BCM IN530 / GVC FR520 / Packard Bell Miami",
+        .internal_name     = "in530",
+        .type              = MACHINE_TYPE_SOCKETS7,
+        .chipset           = MACHINE_CHIPSET_SIS_530,
+        .init              = machine_at_in530_init,
+        .p1_handler        = machine_generic_p1_handler,
+        .gpio_handler      = NULL,
+        .available_flag    = MACHINE_AVAILABLE,
+        .gpio_acpi_handler = NULL,
+        .cpu               = {
+            .package     = CPU_PKG_SOCKET5_7,
+            .block       = CPU_BLOCK_NONE,
+            .min_bus     = 66666667,
+            .max_bus     = 100000000,
+            .min_voltage = 1800,
+            .max_voltage = 3520,
+            .min_multi   = 1.5,
+            .max_multi   = 6.0
+        },
+        .bus_flags = MACHINE_PS2_AGP | MACHINE_BUS_USB,
+        .flags     = MACHINE_IDE_DUAL | MACHINE_VIDEO | MACHINE_APM | MACHINE_ACPI | MACHINE_USB,
+        .ram       = {
+            .min  = 8192,
+            .max  = 524288,
+            .step = 8192
+        },
+        .nvrmask                  = 255,
+        .jumpered_ecp_dma         = 0,
+        .default_jumpered_ecp_dma = -1,
+        .kbc_device               = NULL,
+        .kbc_params               = 0x00000000,
+        .nvr_device               = NULL,
+        .nvr_params               = 0x00000000,
+        .sio_device               = NULL,
+        .sio_params               = 0x00000000,
+        .kbc_p1                   = 0x00000cf0,
+        .gpio                     = 0xffffffff,
+        .gpio_acpi                = 0xffffffff,
+        .device                   = NULL,
+        .kbd_device               = NULL,
+        .fdc_device               = NULL,
+        .vid_device               = &ps1vga_device, /* temporary VGA core, no option ROM */
+        .snd_device               = NULL,
+        .net_device               = NULL,
+        .aliases                  = { "Packard Bell Miami", "GVC FR520", "" }
     },
 
     /* SiS 5591 */

@@ -280,6 +280,7 @@ enum {
     MACHINE_CHIPSET_SIS_5511,
     MACHINE_CHIPSET_SIS_5571,
     MACHINE_CHIPSET_SIS_5581,
+    MACHINE_CHIPSET_SIS_530,
     MACHINE_CHIPSET_SIS_5591,
     MACHINE_CHIPSET_SIS_5600,
     MACHINE_CHIPSET_SMSC_VICTORYBX_66,
@@ -1262,6 +1263,7 @@ extern int             machine_at_5emapro_init(const machine_t *);
 extern int             machine_at_k6bv3p_a_init(const machine_t *);
 
 /* SiS 5591 */
+extern int             machine_at_in530_init(const machine_t *);
 extern int             machine_at_5sg100_init(const machine_t *);
 
 /* m_at_socket8.c */
