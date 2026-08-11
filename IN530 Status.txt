@@ -1,0 +1,9 @@
+Works:
+Uses FR520/Miami 1.29 PB BIOS
+Machine boots to DOS
+
+Doesn't Work:
+RAM test too quick (shared with other machines)
+SMM USB port count (02) gets overwritten with FF and loops (temp fix in place)
+ESS Solo-1 yet to be coded
+SiS 530 AGP adapter yet to be coded
