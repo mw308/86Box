@@ -337,6 +337,16 @@ sis_530_host_to_pci_reset(void *priv)
 {
     sis_530_host_to_pci_t *dev = (sis_530_host_to_pci_t *) priv;
 
+    /*
+     * The SiS 530 platform must not apply the external A20 mask while the
+     * processor is executing an SMI handler.  The BIOS accesses PCI MMIO
+     * above 1 MiB from SMM; applying A20M# aliases addresses such as
+     * EBFEF048h to EBEEF048h and makes the OHCI access read as all ones.
+     *
+     * 86Box's common SMM code saves/restores rammask when this flag is set.
+     */
+    unmask_a20_in_smm = 1;
+
     dev->pci_conf[0x00] = 0x39;
     dev->pci_conf[0x01] = 0x10;
     dev->pci_conf[0x02] = 0x30;
