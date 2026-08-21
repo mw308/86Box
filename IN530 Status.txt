@@ -1,8 +1,8 @@
 Works:
 Uses FR520/Miami 1.29 PB BIOS
-Machine boots to DOS
+Machine boots to Windows 98
+ESS Solo-1 working and detected (except in some DOS games due to the IRQ being incorrect)
 
 Doesn't Work:
 RAM test too quick (shared with other machines)
-ESS Solo-1 yet to be coded
 SiS 530 AGP adapter yet to be coded
