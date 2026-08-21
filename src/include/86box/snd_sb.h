@@ -284,4 +284,11 @@ extern void ess_filter_cd_audio(int channel, double *buffer, void *priv);
 extern void ess_filter_pc_speaker(int channel, double *buffer, void *priv);
 extern void ess_filter_midi(int channel, double *buffer, void *priv);
 
+extern void *ess_solo1_legacy_init(void);
+extern void  ess_solo1_legacy_config(void *priv, uint16_t sb_addr, int sb_enable,
+                                     int fm_enable, int fm_legacy_alias,
+                                     uint16_t mpu_addr, int mpu_enable,
+                                     int sb_irq, int mpu_irq, int dma, uint16_t game_addr);
+extern void  ess_solo1_legacy_close(void *priv);
+
 #endif /*SOUND_SND_SB_H*/

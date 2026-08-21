@@ -6038,6 +6038,246 @@ ess_186x_init(const device_t *info)
     return ess;
 }
 
+/*
+ * ESS Solo-1 DOS mode
+ */
+
+static int
+solo1_legacy_dma_readb(void *priv)
+{
+    sb_t *ess = (sb_t *) priv;
+    int ch = ess->dsp.sb_8_dmanum;
+    int ret = dma_channel_read(ch);
+
+
+    return ret;
+}
+
+static int
+solo1_legacy_dma_readw(void *priv)
+{
+    sb_t *ess = (sb_t *) priv;
+    int ch = ess->dsp.sb_16_dmanum;
+    int lo = dma_channel_read(ch);
+    int hi;
+
+    if (lo & DMA_NODATA)
+        return lo;
+
+    hi = dma_channel_read(ch);
+    if (hi & DMA_NODATA)
+        return hi;
+
+
+    return (lo & 0xff) | ((hi & 0xff) << 8);
+}
+
+static int
+solo1_legacy_dma_writeb(void *priv, uint8_t val)
+{
+    sb_t *ess = (sb_t *) priv;
+    int ch = ess->dsp.sb_8_dmanum;
+    int ret = dma_channel_write(ch, val);
+
+
+    return ret == DMA_NODATA;
+}
+
+static int
+solo1_legacy_dma_writew(void *priv, uint16_t val)
+{
+    sb_t *ess = (sb_t *) priv;
+    int ch = ess->dsp.sb_16_dmanum;
+    int ret;
+
+    ret = dma_channel_write(ch, val & 0xff);
+    if (ret == DMA_NODATA)
+        return 1;
+
+    ret = dma_channel_write(ch, val >> 8);
+
+
+    return ret == DMA_NODATA;
+}
+
+void *
+ess_solo1_legacy_init(void)
+{
+    sb_t *ess = calloc(1, sizeof(sb_t));
+
+
+    ess->opl_enabled = 1;
+    fm_driver_get_cs(FM_ESFM, &ess->opl);
+
+    sb_dsp_set_real_opl(&ess->dsp, 1);
+    sb_dsp_init(&ess->dsp, SBPRO_DSP_301, SB_SUBTYPE_ESS_ES1869, ess);
+    sb_dsp_dma_attach(&ess->dsp,
+                      solo1_legacy_dma_readb,
+                      solo1_legacy_dma_readw,
+                      solo1_legacy_dma_writeb,
+                      solo1_legacy_dma_writew,
+                      ess);
+    sb_dsp_setdma16_supported(&ess->dsp, 0);
+    ess_mixer_reset(ess);
+
+    ess->mixer_ess.input_filter  = 1;
+    ess->mixer_ess.output_filter = 1;
+    ess->mixer_enabled           = 1;
+
+    sound_add_handler(sb_get_buffer_ess, ess);
+    music_add_handler(sb_get_music_buffer_ess, ess);
+    sound_set_cd_audio_filter(ess_filter_cd_audio, ess);
+
+    ess->mpu = (mpu_t *) calloc(1, sizeof(mpu_t));
+    mpu401_init(ess->mpu, 0, -1, M_UART, 0);
+    sb_dsp_set_mpu(&ess->dsp, ess->mpu);
+
+    ess->gameport = gameport_add(&gameport_pnp_device);
+
+    sb_dsp_setaddr(&ess->dsp, 0);
+    sb_dsp_setirq(&ess->dsp, 0);
+    sb_dsp_setdma8(&ess->dsp, ISAPNP_DMA_DISABLED);
+    sb_dsp_setdma16_8(&ess->dsp, ISAPNP_DMA_DISABLED);
+    mpu401_change_addr(ess->mpu, 0);
+    mpu401_setirq(ess->mpu, -1);
+    gameport_remap(ess->gameport, 0);
+
+    return ess;
+}
+
+void
+ess_solo1_legacy_config(void *priv, uint16_t sb_addr, int sb_enable,
+                        int fm_enable, int fm_legacy_alias,
+                        uint16_t mpu_addr, int mpu_enable,
+                        int sb_irq, int mpu_irq, int dma, uint16_t game_addr)
+{
+    sb_t    *ess = (sb_t *) priv;
+    uint16_t old_sb;
+
+    if (ess == NULL)
+        return;
+
+    old_sb = ess->dsp.sb_addr;
+
+    if (old_sb) {
+        io_removehandler(old_sb, 0x0004,
+                         ess->opl.read, NULL, NULL,
+                         ess->opl.write, NULL, NULL,
+                         ess->opl.priv);
+        io_removehandler(old_sb + 8, 0x0002,
+                         ess->opl.read, NULL, NULL,
+                         ess->opl.write, NULL, NULL,
+                         ess->opl.priv);
+        io_removehandler(old_sb + 8, 0x0002,
+                         ess_fm_midi_read, NULL, NULL,
+                         ess_fm_midi_write, NULL, NULL,
+                         ess);
+        io_removehandler(old_sb + 4, 0x0002,
+                         ess_mixer_read, NULL, NULL,
+                         ess_mixer_write, NULL, NULL,
+                         ess);
+        io_removehandler(old_sb + 2, 0x0003,
+                         ess_base_read, NULL, NULL,
+                         ess_base_write, NULL, NULL,
+                         ess);
+        io_removehandler(old_sb + 6, 0x0001,
+                         ess_base_read, NULL, NULL,
+                         ess_base_write, NULL, NULL,
+                         ess);
+        io_removehandler(old_sb + 0x0a, 0x0006,
+                         ess_base_read, NULL, NULL,
+                         ess_base_write, NULL, NULL,
+                         ess);
+    }
+
+    if (ess->opl_pnp_addr) {
+        io_removehandler(ess->opl_pnp_addr, 0x0004,
+                         ess->opl.read, NULL, NULL,
+                         ess->opl.write, NULL, NULL,
+                         ess->opl.priv);
+        io_removehandler(ess->opl_pnp_addr, 0x0004,
+                         ess_fm_midi_read, NULL, NULL,
+                         ess_fm_midi_write, NULL, NULL,
+                         ess);
+        ess->opl_pnp_addr = 0;
+    }
+
+    sb_dsp_setaddr(&ess->dsp, 0);
+    mpu401_change_addr(ess->mpu, 0);
+    mpu401_setirq(ess->mpu, -1);
+    gameport_remap(ess->gameport, 0);
+
+    sb_dsp_setirq(&ess->dsp, sb_enable ? sb_irq : 0);
+    sb_dsp_setdma8(&ess->dsp, sb_enable ? dma : ISAPNP_DMA_DISABLED);
+    sb_dsp_setdma16_8(&ess->dsp, sb_enable ? dma : ISAPNP_DMA_DISABLED);
+
+    if (sb_enable) {
+        if (fm_enable) {
+            io_sethandler(sb_addr, 0x0004,
+                          ess->opl.read, NULL, NULL,
+                          ess->opl.write, NULL, NULL,
+                          ess->opl.priv);
+            io_sethandler(sb_addr + 8, 0x0002,
+                          ess->opl.read, NULL, NULL,
+                          ess->opl.write, NULL, NULL,
+                          ess->opl.priv);
+            io_sethandler(sb_addr + 8, 0x0002,
+                          ess_fm_midi_read, NULL, NULL,
+                          ess_fm_midi_write, NULL, NULL,
+                          ess);
+        }
+
+        io_sethandler(sb_addr + 4, 0x0002,
+                      ess_mixer_read, NULL, NULL,
+                      ess_mixer_write, NULL, NULL,
+                      ess);
+
+        sb_dsp_setaddr(&ess->dsp, sb_addr);
+        io_sethandler(sb_addr + 2, 0x0003,
+                      ess_base_read, NULL, NULL,
+                      ess_base_write, NULL, NULL,
+                      ess);
+        io_sethandler(sb_addr + 6, 0x0001,
+                      ess_base_read, NULL, NULL,
+                      ess_base_write, NULL, NULL,
+                      ess);
+        io_sethandler(sb_addr + 0x0a, 0x0006,
+                      ess_base_read, NULL, NULL,
+                      ess_base_write, NULL, NULL,
+                      ess);
+    }
+
+    if (fm_enable && fm_legacy_alias) {
+        ess->opl_pnp_addr = 0x0388;
+        io_sethandler(ess->opl_pnp_addr, 0x0004,
+                      ess->opl.read, NULL, NULL,
+                      ess->opl.write, NULL, NULL,
+                      ess->opl.priv);
+        io_sethandler(ess->opl_pnp_addr, 0x0004,
+                      ess_fm_midi_read, NULL, NULL,
+                      ess_fm_midi_write, NULL, NULL,
+                      ess);
+    }
+
+    if (mpu_enable) {
+        ess->midi_addr = mpu_addr;
+        mpu401_change_addr(ess->mpu, mpu_addr);
+        mpu401_setirq(ess->mpu, mpu_irq);
+    } else
+        ess->midi_addr = 0;
+
+    ess->gameport_addr = game_addr;
+    gameport_remap(ess->gameport, ess->gameport_addr);
+}
+
+void
+ess_solo1_legacy_close(void *priv)
+{
+    ess_solo1_legacy_config(priv, 0, 0, 0, 0, 0, 0, 0, 0,
+                            ISAPNP_DMA_DISABLED, 0);
+    sb_close(priv);
+}
+
 void
 sb_close(void *priv)
 {
