@@ -26,6 +26,7 @@
 #include <86box/timer.h>
 #include <86box/dma.h>
 #include <86box/mem.h>
+#include <86box/machine.h>
 #include <86box/nvr.h>
 #include <86box/hdd.h>
 #include <86box/hdc.h>
@@ -269,6 +270,9 @@ sis_530_host_to_pci_write(int addr, uint8_t val, void *priv)
             dev->pci_conf[addr] = dev->ram_banks[0].installed |
                                   (dev->ram_banks[1].installed << 1) |
                                   (dev->ram_banks[2].installed << 2);
+
+            /* VGA shared memory register 63h bits 6:4 enable/size */
+            dev->pci_conf[addr] |= val & 0x70;
             break;
 
         case 0x68:
@@ -369,7 +373,12 @@ sis_530_host_to_pci_reset(void *priv)
     dev->pci_conf[0x5e] = dev->pci_conf[0x5f] = 0x00;
     dev->pci_conf[0x60] = dev->pci_conf[0x61] = 0x00;
     dev->pci_conf[0x62] = 0x00;
-    dev->pci_conf[0x63] = 0xff;
+    if (machines[machine].init == machine_at_in530_init)
+        dev->pci_conf[0x63] = dev->ram_banks[0].installed |
+                              (dev->ram_banks[1].installed << 1) |
+                              (dev->ram_banks[2].installed << 2);
+    else
+        dev->pci_conf[0x63] = 0xff;
     dev->pci_conf[0x64] = dev->pci_conf[0x65] = 0x00;
     dev->pci_conf[0x68] = dev->pci_conf[0x69] = 0x00;
     dev->pci_conf[0x6a] = dev->pci_conf[0x6b] = 0x00;

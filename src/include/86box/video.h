@@ -537,6 +537,9 @@ extern const device_t quadcolor_device;
 extern const device_t realtek_rtg3105_device;
 extern const device_t realtek_rtg3106_device;
 
+/* SiS */
+extern const device_t sis6306_onboard_device;
+
 /* S3 9XX/8XX/Vision/Trio */
 /* On-board */
 extern const device_t s3_86c805_onboard_vlb_device;

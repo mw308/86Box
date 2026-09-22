@@ -927,6 +927,7 @@ machine_at_in530_init(const machine_t *model)
     pci_init(PCI_CONFIG_TYPE_1);
     pci_register_slot(0x00, PCI_CARD_NORTHBRIDGE,     0, 0, 0, 0);
     pci_register_slot(0x01, PCI_CARD_SOUTHBRIDGE,     0, 0, 0, 0);
+    pci_register_slot(0x02, PCI_CARD_AGPBRIDGE,       0, 0, 0, 0);
     /* Physical FR520 / IN530 PCI topology verified with PCITool:
          device 09h - PCI slot 1
          device 0Ah - PCI slot 2
@@ -942,6 +943,9 @@ machine_at_in530_init(const machine_t *model)
     device_add_params(&w83877_device, (void *) (W83877TF | (W83877_3F0 & ~0x04)));
     device_add(&amd_flash_29f002nbt_device);
     spd_register(SPD_TYPE_SDRAM, 0x3, 512);
+
+    if ((gfxcard[0] == VID_INTERNAL) && machine_get_vid_device(machine))
+        device_add(machine_get_vid_device(machine));
 
     if (sound_card_current[0] == SOUND_INTERNAL)
         device_add(machine_get_snd_device(machine));
