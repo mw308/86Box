@@ -98,6 +98,45 @@ static uint32_t bank_sizes[6] = { 0x00800000,      /*   8 MB */
                                   0x08000000,      /* 128 MB */
                                   0x10000000 };    /* 256 MB */
 
+static uint32_t
+sis_530_shared_framebuffer_size(const sis_530_host_to_pci_t *dev)
+{
+    if ((machines[machine].init != machine_at_in530_init) ||
+        !(dev->pci_conf[0x63] & 0x40))
+        return 0;
+
+    switch ((dev->pci_conf[0x63] >> 4) & 0x03) {
+        case 0x01: return 2U << 20;
+        case 0x02: return 4U << 20;
+        case 0x03: return 8U << 20;
+        default:   return 0;
+    }
+}
+
+static void
+sis_530_shared_framebuffer_recalc(sis_530_host_to_pci_t *dev)
+{
+    const uint32_t total_bytes = mem_size << 10;
+    uint32_t reserve = sis_530_shared_framebuffer_size(dev);
+    uint32_t visible_bytes;
+
+    if (reserve >= total_bytes)
+        reserve = 0;
+
+    visible_bytes = total_bytes - reserve;
+
+    if (visible_bytes > 0x00100000U) {
+        mem_mapping_set_addr(&ram_high_mapping, 0x00100000U,
+                             visible_bytes - 0x00100000U);
+        mem_mapping_set_exec(&ram_high_mapping, ram + 0x00100000U);
+    } else
+        mem_mapping_disable(&ram_high_mapping);
+
+    sis_530_host_to_pci_log(
+        "SiS 530 H2P: shared framebuffer=%u KiB, CPU-visible RAM=%u KiB, installed=%u KiB\n",
+        reserve >> 10, visible_bytes >> 10, mem_size);
+}
+
 static void
 sis_530_shadow_recalc(sis_530_host_to_pci_t *dev)
 {
@@ -273,6 +312,7 @@ sis_530_host_to_pci_write(int addr, uint8_t val, void *priv)
 
             /* VGA shared memory register 63h bits 6:4 enable/size */
             dev->pci_conf[addr] |= val & 0x70;
+            sis_530_shared_framebuffer_recalc(dev);
             break;
 
         case 0x68:
@@ -379,6 +419,8 @@ sis_530_host_to_pci_reset(void *priv)
                               (dev->ram_banks[2].installed << 2);
     else
         dev->pci_conf[0x63] = 0xff;
+    if (machines[machine].init == machine_at_in530_init)
+        sis_530_shared_framebuffer_recalc(dev);
     dev->pci_conf[0x64] = dev->pci_conf[0x65] = 0x00;
     dev->pci_conf[0x68] = dev->pci_conf[0x69] = 0x00;
     dev->pci_conf[0x6a] = dev->pci_conf[0x6b] = 0x00;
